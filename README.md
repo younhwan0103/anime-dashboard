@@ -89,7 +89,5 @@ DOM 검사에서 `<div style="width:100%;height:100%"></div>`가 비어 있는 �
 
 ## 남은 과제
 
-- [ ] 30일 범위에서 라인 중간이 끊기는 현상 (`curveNatural` 오버슈트 / `fadeEdges` 마스크 / decimation 중 원인 미확정)
-- [ ] 발견한 Bklit 버그 3건 업스트림 이슈 등록
 - [ ] `next-themes` 다크모드 (토큰 기반이라 차트까지 자동 대응 예상)
 - [ ] Route Handler로 실제 데이터 연결
