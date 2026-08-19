@@ -12,6 +12,7 @@ Next.js 16 + shadcn/ui + Bklit UI + Anime.js로 만든 애니메이션 대시보
 | shadcn/ui               | 기본 UI    | 소스를 프로젝트에 복사하는 registry 방식이라 내부 구현을 읽고 수정할 수 있음 |
 | Bklit UI                | 차트       | shadcn registry 위에 얹히는 합성형 차트 API, 데이터 전환 트위닝 내장         |
 | Anime.js v4             | 애니메이션 | 명령형 제어(카운트업, 등장 연출)에 적합                                      |
+| next-themes             | 다크모드   | `<html>`에 클래스를 찍는 방식이라 shadcn 토큰 구조와 그대로 맞물림           |
 
 ## 실행
 
@@ -22,13 +23,85 @@ pnpm dev
 
 Node 20 이상 필요 (개발 환경: Node 22.23.2, pnpm 11).
 
+```bash
+pnpm build         # 타입 검사 포함. 커밋 전 필수
+pnpm format        # Prettier
+pnpm format:check  # 포맷 검사만
+```
+
 ## 구현한 것
 
 - **KPI 카드** — Anime.js로 0부터 목표값까지 카운트업 (`outExpo` 이징, 천 단위 구분, 소수점 자릿수 지원)
 - **순차 등장** — 카드마다 `delay`를 어긋나게 줘서 스태거 효과
-- **라인 차트** — Bklit `LineChart`, 크로스헤어 툴팁, 7/14/30일 전환 시 y축 도메인 트위닝
+- **라인 차트** — Bklit `LineChart`, 크로스헤어 툴팁, y축 도메인 트위닝
 - **도넛 차트** — 채널별 유입 비중, 중앙 합계 표시
 - **스크롤 등장** — `IntersectionObserver` + Anime.js로 뷰포트 진입 시 재생
+- **다크모드** — `next-themes` + shadcn 토큰. 시스템 설정 연동, 선택값 `localStorage` 유지
+- **기간 선택** — 7/14/30일. 상태를 URL 쿼리(`?range=`)에 두고 서버가 렌더
+- **데이터 레이어 분리** — `lib/data.ts`의 서버 전용 함수가 데이터 생성, 서버 컴포넌트가 props로 전달
+
+## 구조
+
+```
+app/
+  layout.tsx          ThemeProvider 배선, metadata
+  page.tsx            서버 컴포넌트. searchParams 읽고 데이터 로드
+  globals.css         shadcn + Bklit 토큰 (:root / .dark)
+lib/
+  ranges.ts           기간 상수·타입·파싱 — 서버/클라이언트 공용 (표시 없음)
+  data.ts             데이터 조회 — 서버 전용 (`server-only`)
+  utils.ts            cn()
+components/
+  visitors-chart.tsx  클라이언트. 데이터는 prop, 기간 변경은 router.push
+  channel-chart.tsx   클라이언트. 도넛
+  stat-card.tsx       클라이언트. Anime.js 카운트업
+  reveal.tsx          클라이언트. 스크롤 등장
+  client-only.tsx     마운트 후 렌더 래퍼
+  theme-provider.tsx  next-themes 래퍼
+  theme-toggle.tsx    라이트/다크 토글
+  charts/             Bklit registry 복사본 (Prettier 제외 대상)
+```
+
+`lib/` 안의 두 모듈이 성격이 다르다. `ranges.ts`는 양쪽이 함께 쓰는 순수 모듈이라 아무 표시가 없고, `data.ts`는 `import "server-only"`로 클라이언트 번들 유입을 컴파일 타임에 막는다. 같은 디렉터리에 있어도 경계가 코드 한 줄로 드러난다.
+
+## 설계 결정
+
+### 왜 Route Handler를 만들지 않았나
+
+처음 계획은 `app/api/visitors/route.ts`를 두고 클라이언트가 `fetch`하는 것이었다. 실제로 만들려니 필요가 없었다.
+
+기간 상태를 URL에 두면 버튼 클릭이 곧 네비게이션이고, 서버 컴포넌트가 다시 렌더되면서 데이터도 같이 내려온다. 이미 서버에서 실행되는 코드가 자기 자신에게 HTTP 요청을 걸 이유가 없다 — 연결·직렬화·역직렬화가 순수 추가 비용이고, 절대 URL이 필요해서 배포 환경마다 호스트를 챙겨야 한다. 함수를 그냥 호출하면 이 전부가 사라진다.
+
+Route Handler는 **브라우저가 호출할 때** 의미가 있다. 지금은 그런 요구가 없다.
+
+부수 효과로 경쟁 상태도 사라졌다. 클라이언트에서 `fetch`했다면 7 → 30 → 14일을 빠르게 누를 때 응답 도착 순서가 뒤바뀌어 `AbortController`나 요청 ID 비교가 필요했을 것이다. 서버 렌더링 방식은 React가 마지막 네비게이션만 커밋하므로 그 문제 자체가 생기지 않는다.
+
+### 상태를 URL에 둔 이유
+
+`useState`로 기간을 관리하던 중간 단계에서 화면에 진실이 두 개 생겼다. `/?range=30`으로 접속한 뒤 "7일" 버튼을 누르면:
+
+| 대상                     | 값                     |
+| ------------------------ | ---------------------- |
+| 차트 데이터·버튼 활성    | 7일                    |
+| 헤더 "최근 N일 지표"     | 30일 (`searchParams`)  |
+| 주소창                   | `?range=30`            |
+| 뒤로가기 / 링크 공유     | 동작하지 않음          |
+
+`useState`를 걷어내고 `router.push`로 바꾸니 서버가 헤더와 차트를 한 번에 계산하므로 어긋날 수가 없다. 뒤로가기와 링크 공유는 공짜로 얻었다.
+
+대가는 지연이다. 클릭 → 서버 왕복 → 반영이라 즉시 반응하지 않는다. `useTransition`의 `isPending`으로 차트를 흐리게(`opacity-50`) 처리해 메웠다. 스켈레톤으로 비우지 않고 **이전 데이터를 유지한 채** 흐리게 두는 것이 `useTransition`의 요점이다.
+
+### `Promise.all`
+
+```ts
+const [visitors, stats] = await Promise.all([getVisitors(days), getStats()]);
+```
+
+`await`를 두 줄로 나란히 쓰면 서로 의존하지 않는 요청도 순차 실행된다. `lib/data.ts`에 개발용 지연 400ms를 넣어뒀으므로 직렬은 800ms, 병렬은 400ms. 차이를 Network 탭에서 직접 볼 수 있다.
+
+### Prettier에서 `components/charts` 제외
+
+Bklit registry에서 복사한 60여 개 파일이다. 포맷하면 기능 변경 0인 diff가 수천 줄 생기고, 나중에 원본과 대조할 때 **내가 고친 것**(트러블슈팅 1의 경로 치환)과 **포매터가 바꾼 것**이 섞여 구분이 안 된다. 남의 코드는 남의 포맷으로 둔다.
 
 ## 트러블슈팅
 
@@ -67,6 +140,8 @@ stroke = chartCssVars.linePrimary; // → var(--chart-line-primary)
 
 원인이 다르므로 대응도 달라야 한다. 확장 프로그램 케이스에 `ClientOnly`를 쓰거나, 차트 케이스에 `suppressHydrationWarning`을 쓰면 둘 다 틀린 처방.
 
+→ 다크모드에서 두 처방이 다시 등장한다. 트러블슈팅 6 참고.
+
 ### 4. 차트 영역이 0px
 
 DOM 검사에서 `<div style="width:100%;height:100%"></div>`가 비어 있는 것을 확인. 레이아웃 작업 때 쓴 플레이스홀더 `div`(`flex items-center justify-center h-[300px]`)가 남아 있어서, 안쪽 차트가 너비를 0으로 측정하고 있었다.
@@ -80,14 +155,74 @@ DOM 검사에서 `<div style="width:100%;height:100%"></div>`가 비어 있는 �
 - `@types/d3-shape`, `@types/d3-array` 누락 (Bklit이 devDependencies에 안 넣음)
 - `useEffect` cleanup에서 `return () => anim.pause()` — `pause()`의 반환값이 그대로 리턴되어 `Destructor` 타입 위반. 중괄호로 감싸 해결
 
+### 6. `suppressHydrationWarning`의 두 얼굴
+
+다크모드를 붙이면서 트러블슈팅 3의 두 처방을 다시 만났다.
+
+- **테마 토글 버튼** → 서버는 `localStorage`를 모르므로 `resolvedTheme`이 첫 렌더에 `undefined`. 아이콘을 조건부로 그리면 불일치 → `ClientOnly`. 차트와 같은 부류다
+- **`<html>`의 `class="dark"`** → `next-themes`가 `<head>`에 인라인 스크립트를 주입해 React가 hydrate하기 **전에** 클래스를 찍는다. 그래야 흰 화면 번쩍임(FOUC)이 없다 → `suppressHydrationWarning`. 브라우저 확장 케이스와 같은 부류다
+
+트러블슈팅 3에서는 "원인이 다르므로 대응도 달라야 한다"고 정리했는데, 여기서는 반대다. **확장 프로그램의 개입은 원치 않은 것이고 next-themes의 개입은 의도된 것인데, 처방은 같다.**
+
+기준이 원인의 성격이 아니라는 뜻이다. 실제 기준은 두 가지다.
+
+| 질문                                       | 처방                       |
+| ------------------------------------------ | -------------------------- |
+| 서버가 알 수 없는 값을 쓰는가              | `ClientOnly`               |
+| React 바깥의 무언가가 DOM을 먼저 건드리는가 | `suppressHydrationWarning` |
+
+다크모드는 이 두 축을 동시에 밟는다.
+
+### 7. 다크모드에서 라인 차트가 다시 안 보임
+
+토글을 붙이니 배경·카드·텍스트·그리드선은 잘 바뀌는데 라인만 어두운 배경에 묻혔다. 트러블슈팅 2와 증상이 같아서 또 오타인가 싶었지만 원인이 달랐다.
+
+`.dark` 블록이 `--chart-1` ~ `--chart-5`를 **재정의하기는 하는데 `:root`와 값이 완전히 동일**했다.
+
+```css
+:root  { --chart-3: oklch(0.439 0 0); }
+.dark  { --chart-3: oklch(0.439 0 0); }  /* 같은 값 */
+```
+
+라이트 테마 스케일은 `0.87 → 0.269`로 어두워지는 순서다. 흰 배경 위에 그리니까. 이걸 배경 `oklch(0.145 0 0)` 위에 그대로 얹으면 당연히 안 보인다. 다크에서는 밝기 방향을 뒤집어야 한다.
+
+```css
+.dark {
+  --chart-1: oklch(0.92 0 0);
+  --chart-2: oklch(0.8 0 0);
+  --chart-3: oklch(0.68 0 0);
+  --chart-4: oklch(0.55 0 0);
+  --chart-5: oklch(0.42 0 0);
+}
+```
+
+`--chart-line-primary: var(--chart-3)`은 건드리지 않았다. CSS 변수는 선언 시점이 아니라 **사용 시점에** 캐스케이드를 따라 해석되므로 `--chart-3`만 바꾸면 이걸 참조하는 모든 것이 따라온다.
+
+그리고 이 지연 해석이 트러블슈팅 2가 어려웠던 이유였다. 존재하지 않는 변수를 가리키는 한 줄이, 문법도 멀쩡하고 에러도 없이 **그리는 순간에야** 무효값으로 판명됐던 것. 같은 성질이 그때는 함정이었고 이번에는 편의였다.
+
+`--chart-tooltip-background` / `-foreground` / `-muted`는 `.dark`에 아예 없어서 라이트용 값이 상속되고 있었다. 추가로 채웠다.
+
 ## 배운 것
 
 - shadcn registry 방식의 트레이드오프: 배포자의 버그도 그대로 복사되지만, **소스가 내 프로젝트에 있으니 직접 고칠 수 있다**
 - 레이아웃 문제는 콘솔이 아니라 Elements 탭에 답이 있다
 - 애니메이션 역할 분담 — 명령형(Anime.js: 카운트업, 등장) / 선언형(Bklit 내장: 데이터 전환)
 - 커밋 전 `pnpm build`는 필수. dev 서버는 타입 에러를 알려주지 않는다
+- **CSS 변수는 사용 시점에 해석된다** — 오타가 조용히 통과하는 이유이자, 토큰 하나만 바꿔도 전파되는 이유
+- **디자인 토큰이 있다고 다크모드가 자동으로 되는 건 아니다** — 구조는 자동이지만 값은 사람이 정해야 한다
+- **상태 소스가 둘이면 반드시 어긋난다.** URL에 둘 수 있는 상태는 URL에 두는 게 뒤로가기·링크 공유까지 공짜로 준다
+- **서버 컴포넌트에서 자기 API를 fetch하지 않는다.** 함수를 그냥 호출하면 된다
+- `await`를 나란히 쓰면 순차 실행된다. 독립적인 요청은 `Promise.all`
+- 들여쓰기를 손으로 두 번 고쳤다면 포매터를 넣을 때다. 규율은 사람보다 도구가 잘 지킨다
+- **가설이 빗나간 기록이 맞은 기록보다 쓸모 있다** (트러블슈팅 7)
 
 ## 남은 과제
 
-- [ ] `next-themes` 다크모드 (토큰 기반이라 차트까지 자동 대응 예상)
-- [ ] Route Handler로 실제 데이터 연결
+- [x] `next-themes` 다크모드 — 구조는 토큰이 처리했지만 차트 색상값은 수동 보정 필요했다 (트러블슈팅 7)
+- [x] 데이터를 서버 레이어로 분리 (`lib/data.ts`)
+- [~] Route Handler로 실제 데이터 연결 — URL 기반 서버 렌더로 대체. 필요가 사라졌다 ([설계 결정](#왜-route-handler를-만들지-않았나))
+- [ ] `components/channel-chart.tsx`의 hex 색상을 토큰으로 — 도넛 차트가 아직 테마 시스템 바깥에 있다. 현재 차트 토큰이 전부 무채색이라 5개 채널을 명암으로만 구분하게 되는 문제부터 풀어야 한다
+- [ ] `lib/data.ts`의 `new Date()` 타임존 — 로컬은 KST지만 배포 시 서버가 UTC라 "오늘"이 하루 밀린다
+- [ ] `FAKE_LATENCY_MS` 제거 또는 개발 환경 한정
+- [ ] `docs/screenshot.png` 갱신 (다크모드 적용 전 화면)
+- [ ] `loading.tsx` / Suspense 경계 — 지금은 `useTransition`이 전환만 가려주고 최초 로드는 그대로 기다린다

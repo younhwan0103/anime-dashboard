@@ -4,7 +4,7 @@ import type { Range } from "@/lib/ranges";
 export type VisitorPoint = {
   date: Date;
   users: number;
-}
+};
 
 export type Stat = {
   title: string;
@@ -12,7 +12,7 @@ export type Stat = {
   change: number;
   suffix?: string;
   decimals?: number;
-}
+};
 
 /** 실제 API 호출을 흉내내는 지연. 개발 중 pending 상태를 눈으로 보려고 */
 const FAKE_LATENCY_MS = 400;
@@ -21,12 +21,6 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * 오늘로부터 거슬러 올라간 최근 N일치 방문자 데이터.
- *
- * ⚠️ 날짜 기준은 "서버의 오늘"이다. 서버 타임존이 UTC라면
- * 한국 사용자에게는 하루 어긋나 보일 수 있다. (아래 설명 참고)
- */
 export async function getVisitors(days: Range): Promise<VisitorPoint[]> {
   await sleep(FAKE_LATENCY_MS);
 
