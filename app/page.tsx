@@ -17,7 +17,13 @@ const stats = [
   { title: "총 방문자", value: 12480, change: 12.5 },
   { title: "신규 가입", value: 1024, change: 8.2 },
   { title: "이탈률", value: 24.1, suffix: "%", decimals: 1, change: -3.4 },
-  { title: "평균 체류시간", value: 3.7, suffix: "분", decimals: 1, change: 5.1 },
+  {
+    title: "평균 체류시간",
+    value: 3.7,
+    suffix: "분",
+    decimals: 1,
+    change: 5.1,
+  },
 ];
 
 // `PageProps`는 next typegen이 만드는 전역 타입이라 import하지 않는다.

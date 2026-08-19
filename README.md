@@ -6,12 +6,12 @@ Next.js 16 + shadcn/ui + Bklit UI + Anime.js로 만든 애니메이션 대시보
 
 ## 왜 이 조합인가
 
-| 기술 | 역할 | 선택 이유 |
-|---|---|---|
-| Next.js 16 (App Router) | 프레임워크 | 서버/클라이언트 컴포넌트 경계를 직접 다뤄보기 위해 |
-| shadcn/ui | 기본 UI | 소스를 프로젝트에 복사하는 registry 방식이라 내부 구현을 읽고 수정할 수 있음 |
-| Bklit UI | 차트 | shadcn registry 위에 얹히는 합성형 차트 API, 데이터 전환 트위닝 내장 |
-| Anime.js v4 | 애니메이션 | 명령형 제어(카운트업, 등장 연출)에 적합 |
+| 기술                    | 역할       | 선택 이유                                                                    |
+| ----------------------- | ---------- | ---------------------------------------------------------------------------- |
+| Next.js 16 (App Router) | 프레임워크 | 서버/클라이언트 컴포넌트 경계를 직접 다뤄보기 위해                           |
+| shadcn/ui               | 기본 UI    | 소스를 프로젝트에 복사하는 registry 방식이라 내부 구현을 읽고 수정할 수 있음 |
+| Bklit UI                | 차트       | shadcn registry 위에 얹히는 합성형 차트 API, 데이터 전환 트위닝 내장         |
+| Anime.js v4             | 애니메이션 | 명령형 제어(카운트업, 등장 연출)에 적합                                      |
 
 ## 실행
 
@@ -49,13 +49,13 @@ grep -rl '"\.\./components/' components/charts \
 
 ```ts
 // components/charts/line.tsx
-stroke = chartCssVars.linePrimary  // → var(--chart-line-primary)
+stroke = chartCssVars.linePrimary; // → var(--chart-line-primary)
 ```
 
 `globals.css`를 grep해보니 대시가 4개인 오타가 있었다.
 
 ```css
---chart-line-primary: var(----chart-line-primary);  /* ❌ 정의되지 않은 변수 */
+--chart-line-primary: var(----chart-line-primary); /* ❌ 정의되지 않은 변수 */
 ```
 
 이 줄이 `:root`의 정상 정의(`var(--chart-1)`)를 덮어써서 stroke가 무효값이 되고, 선이 투명하게 그려지고 있었다. 파이 차트는 데이터에 색을 직접 넣어서 영향이 없었던 것.

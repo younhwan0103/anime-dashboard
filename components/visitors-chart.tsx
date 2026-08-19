@@ -24,11 +24,11 @@ export function VisitorsChart({ days }: { days: Range }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  // day는 이제 순수한 prop. 상태 소스는 URL 하나 ! 
+  // day는 이제 순수한 prop. 상태 소스는 URL 하나 !
   const data = makeData(days);
 
   function selectRange(next: Range) {
-    // 같은 기간 재클릭 시 불필요한 왕복 차단! 
+    // 같은 기간 재클릭 시 불필요한 왕복 차단!
     if (next === days) return;
 
     startTransition(() => {
