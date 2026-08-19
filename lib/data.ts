@@ -21,6 +21,12 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * 오늘로부터 거슬러 올라간 최근 N일치 방문자 데이터.
+ *
+ * ⚠️ 날짜 기준은 "서버의 오늘"이다. 배포 서버가 UTC면 KST 사용자에게
+ * 하루 어긋나 보인다.
+ */
 export async function getVisitors(days: Range): Promise<VisitorPoint[]> {
   await sleep(FAKE_LATENCY_MS);
 
