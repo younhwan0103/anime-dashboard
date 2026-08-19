@@ -9,13 +9,13 @@ export function ThemeToggle() {
     const isDark = resolvedTheme === "dark";
 
     return (
-        <Button
-            variant="outline"
-            size="icon"
-            aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
-            onClick={() => setTheme(isDark ? "light" : "dark")}
-        >
-            { isDark ? <Moon /> : <Sun /> }
-        </Button>
+      <Button
+          variant="outline"
+          size="icon"
+          aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
+          onClick={() => setTheme(isDark ? "light" : "dark")}
+      >
+          { isDark ? <Moon /> : <Sun /> }
+      </Button>
     );
 }

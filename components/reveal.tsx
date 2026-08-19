@@ -25,7 +25,7 @@ export function Reveal({ children, delay = 0, className }: RevealProps) {
     });
 
     return () => {
-        anim.pause();
+      anim.pause();
     };
   }, [inView, delay, ref]);
 

@@ -1,7 +1,8 @@
 "use client";
 
 import { curveMonotoneX } from "@visx/curve";
-import { useState } from "react";
+import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { LineChart } from "@/components/charts/line-chart";
 import { Line } from "@/components/charts/line";
 import { Grid } from "@/components/charts/grid";
@@ -9,6 +10,7 @@ import { XAxis } from "@/components/charts/x-axis";
 import { ChartTooltip } from "@/components/charts/tooltip/chart-tooltip";
 import { ClientOnly } from "@/components/client-only";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { RANGES, type Range } from "@/lib/ranges";
 
 function makeData(days: number) {
@@ -18,12 +20,21 @@ function makeData(days: number) {
   }));
 }
 
-export function VisitorsChart({ days: initialDays }: { days: Range }) {
-  // ⚠️ 1단계 한정: URL에서 온 값을 "초기값"으로만 쓴다.
-  // prop이 바뀌어도 useState는 다시 초기화되지 않으므로 상태 소스가 둘이다.
-  // 2단계에서 이 useState를 걷어내고 URL 하나로 합친다.
-  const [days, setDays] = useState<Range>(initialDays);
+export function VisitorsChart({ days }: { days: Range }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  // day는 이제 순수한 prop. 상태 소스는 URL 하나 ! 
   const data = makeData(days);
+
+  function selectRange(next: Range) {
+    // 같은 기간 재클릭 시 불필요한 왕복 차단! 
+    if (next === days) return;
+
+    startTransition(() => {
+      router.push(`/?range=${next}`, { scroll: false });
+    });
+  }
 
   return (
     <div className="space-y-3">
@@ -33,15 +44,21 @@ export function VisitorsChart({ days: initialDays }: { days: Range }) {
             key={r}
             size="sm"
             variant={r === days ? "default" : "outline"}
-            onClick={() => setDays(r)}
+            onClick={() => selectRange(r)}
           >
             {r}일
           </Button>
         ))}
       </div>
 
-      <ClientOnly fallback={<div className="aspect-[2/1] w-full" />}>
-        <div className="w-full">
+      <ClientOnly fallback={<div className="aspect-2/1 w-full" />}>
+        <div
+          aria-busy={isPending}
+          className={cn(
+            "w-full transition-opacity duration-200",
+            isPending && "opacity-50"
+          )}
+        >
           <LineChart data={data}>
             <Grid horizontal />
             <Line
