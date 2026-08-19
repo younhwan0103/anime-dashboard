@@ -19,10 +19,7 @@ export default async function Home(props: PageProps<"/">) {
   const days = parseRange(range);
 
   // 두 요청을 병렬로. 순차 await하면 워터폴이 생긴다.
-  const [visitors, stats] = await Promise.all([
-    getVisitors(days),
-    getStats(),
-  ]);
+  const [visitors, stats] = await Promise.all([getVisitors(days), getStats()]);
 
   return (
     <main className="min-h-screen bg-background">
