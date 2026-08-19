@@ -10,27 +10,19 @@ import {
 } from "@/components/ui/card";
 import { Reveal } from "@/components/reveal";
 import { parseRange } from "@/lib/ranges";
+import { getVisitors, getStats } from "@/lib/data";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ClientOnly } from "@/components/client-only";
 
-const stats = [
-  { title: "총 방문자", value: 12480, change: 12.5 },
-  { title: "신규 가입", value: 1024, change: 8.2 },
-  { title: "이탈률", value: 24.1, suffix: "%", decimals: 1, change: -3.4 },
-  {
-    title: "평균 체류시간",
-    value: 3.7,
-    suffix: "분",
-    decimals: 1,
-    change: 5.1,
-  },
-];
-
-// `PageProps`는 next typegen이 만드는 전역 타입이라 import하지 않는다.
-// searchParams는 Promise이므로 이 컴포넌트는 async여야 한다. (Next 16 breaking change)
 export default async function Home(props: PageProps<"/">) {
   const { range } = await props.searchParams;
   const days = parseRange(range);
+
+  // 두 요청을 병렬로. 순차 await하면 워터폴이 생긴다.
+  const [visitors, stats] = await Promise.all([
+    getVisitors(days),
+    getStats(),
+  ]);
 
   return (
     <main className="min-h-screen bg-background">
@@ -61,7 +53,7 @@ export default async function Home(props: PageProps<"/">) {
                 <CardDescription>일별 순 방문자 수</CardDescription>
               </CardHeader>
               <CardContent>
-                <VisitorsChart days={days} />
+                <VisitorsChart days={days} data={visitors} />
               </CardContent>
             </Card>
           </Reveal>
