@@ -9,6 +9,17 @@ export interface SeriesPathPoint {
   key: string;
 }
 
+/**
+ * `?? 0` only guards null/undefined — a scale fed an Invalid Date or a
+ * non-finite value returns NaN, which lands in the path `d` and makes the
+ * browser drop the whole <path>. Points that fail this check are skipped
+ * via d3's `defined` instead, so one bad row costs one segment, not the
+ * entire series.
+ */
+function isFinitePoint(point: SeriesPathPoint): boolean {
+  return Number.isFinite(point.x) && Number.isFinite(point.y);
+}
+
 export function computeSeriesPathPoints(
   data: Record<string, unknown>[],
   xAccessor: (datum: Record<string, unknown>) => Date,
@@ -20,8 +31,8 @@ export function computeSeriesPathPoints(
     const xValue = xAccessor(datum);
     const yValue = datum[dataKey];
     return {
-      x: xScale(xValue) ?? 0,
-      y: typeof yValue === "number" ? (yScale(yValue) ?? 0) : 0,
+      x: xScale(xValue) ?? Number.NaN,
+      y: typeof yValue === "number" ? (yScale(yValue) ?? Number.NaN) : Number.NaN,
       key: String(xValue.getTime?.() ?? index),
     };
   });
@@ -76,6 +87,7 @@ export function seriesPathFromPoints(
   }
 
   const generator = d3Line<SeriesPathPoint>()
+    .defined(isFinitePoint)
     .x((point) => point.x)
     .y((point) => point.y)
     .curve(curve);

@@ -1,5 +1,6 @@
 "use client";
 
+import { curveMonotoneX } from "@visx/curve";
 import { useState } from "react";
 import { LineChart } from "@/components/charts/line-chart";
 import { Line } from "@/components/charts/line";
@@ -41,7 +42,12 @@ export function VisitorsChart() {
         <div className="w-full">
           <LineChart data={data}>
             <Grid horizontal />
-            <Line dataKey="users" animate={false} fadeEdges={false} />
+            <Line
+              animate={false}
+              curve={curveMonotoneX}
+              dataKey="users"
+              fadeEdges={false}
+            />
             <XAxis />
             <ChartTooltip />
           </LineChart>

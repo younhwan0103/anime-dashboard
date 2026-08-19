@@ -131,15 +131,21 @@ function LineSeriesStroke({
     );
   }
 
+  const getX = (d: Record<string, unknown>) =>
+    xScale(xAccessor(d)) ?? Number.NaN;
+
   return (
     <LinePath
       curve={curve}
       data={renderData}
+      // A NaN coordinate (Invalid Date, non-finite value) would otherwise be
+      // written into `d` and make the browser drop the entire <path>.
+      defined={(d) => Number.isFinite(getX(d)) && Number.isFinite(getY(d))}
       innerRef={pathRef}
       stroke={visibleStroke}
       strokeLinecap="round"
       strokeWidth={strokeWidth}
-      x={(d) => xScale(xAccessor(d)) ?? 0}
+      x={getX}
       y={getY}
     />
   );
@@ -296,13 +302,17 @@ export function Line({
   const getY = useCallback(
     (d: Record<string, unknown>) => {
       const value = d[dataKey];
-      return typeof value === "number" ? (yScale(value) ?? 0) : 0;
+      return typeof value === "number" ? (yScale(value) ?? Number.NaN) : Number.NaN;
     },
     [dataKey, yScale]
   );
 
   const hasDashTail = resolveDashTailBounds(dashFromIndex, data.length);
-  const fadeSides = resolveFadeSides(fadeEdges);
+  // At innerWidth 0 (first paint, before ParentSize measures) the gradient
+  // would collapse to x1 === x2; SVG then paints everything with the last
+  // stop, whose opacity is 0 — the whole line disappears. Skip the fade
+  // until the chart has a real width.
+  const fadeSides = resolveFadeSides(innerWidth > 0 ? fadeEdges : false);
   const lineStroke = fadeSides.any ? `url(#${gradientId})` : stroke;
   const fadeStops = fadeSides.any ? fadeGradientStops(fadeSides) : null;
   const showSeriesStroke =
