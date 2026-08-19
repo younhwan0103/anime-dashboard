@@ -1,7 +1,6 @@
 import { StatCard } from "@/components/stat-card";
 import { VisitorsChart } from "@/components/visitors-chart";
 import { ChannelChart } from "@/components/channel-chart";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardHeader,
@@ -10,6 +9,9 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Reveal } from "@/components/reveal";
+import { parseRange } from "@/lib/ranges";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { ClientOnly } from "@/components/client-only";
 
 const stats = [
   { title: "총 방문자", value: 12480, change: 12.5 },
@@ -18,7 +20,12 @@ const stats = [
   { title: "평균 체류시간", value: 3.7, suffix: "분", decimals: 1, change: 5.1 },
 ];
 
-export default function Home() {
+// `PageProps`는 next typegen이 만드는 전역 타입이라 import하지 않는다.
+// searchParams는 Promise이므로 이 컴포넌트는 async여야 한다. (Next 16 breaking change)
+export default async function Home(props: PageProps<"/">) {
+  const { range } = await props.searchParams;
+  const days = parseRange(range);
+
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-6xl px-6 py-10">
@@ -26,10 +33,12 @@ export default function Home() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">대시보드</h1>
             <p className="text-sm text-muted-foreground">
-              최근 30일 지표를 확인하세요.
+              최근 {days}일 지표를 확인하세요.
             </p>
           </div>
-          <Button variant="outline">기간 변경</Button>
+          <ClientOnly fallback={<div className="size-8" />}>
+            <ThemeToggle />
+          </ClientOnly>
         </header>
 
         <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -46,7 +55,7 @@ export default function Home() {
                 <CardDescription>일별 순 방문자 수</CardDescription>
               </CardHeader>
               <CardContent>
-                <VisitorsChart />
+                <VisitorsChart days={days} />
               </CardContent>
             </Card>
           </Reveal>

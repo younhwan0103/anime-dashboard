@@ -9,8 +9,7 @@ import { XAxis } from "@/components/charts/x-axis";
 import { ChartTooltip } from "@/components/charts/tooltip/chart-tooltip";
 import { ClientOnly } from "@/components/client-only";
 import { Button } from "@/components/ui/button";
-
-const RANGES = [7, 14, 30] as const;
+import { RANGES, type Range } from "@/lib/ranges";
 
 function makeData(days: number) {
   return Array.from({ length: days }, (_, i) => ({
@@ -19,8 +18,11 @@ function makeData(days: number) {
   }));
 }
 
-export function VisitorsChart() {
-  const [days, setDays] = useState<number>(14);
+export function VisitorsChart({ days: initialDays }: { days: Range }) {
+  // ⚠️ 1단계 한정: URL에서 온 값을 "초기값"으로만 쓴다.
+  // prop이 바뀌어도 useState는 다시 초기화되지 않으므로 상태 소스가 둘이다.
+  // 2단계에서 이 useState를 걷어내고 URL 하나로 합친다.
+  const [days, setDays] = useState<Range>(initialDays);
   const data = makeData(days);
 
   return (
