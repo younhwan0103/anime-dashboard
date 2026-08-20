@@ -1,5 +1,4 @@
-import { StatCard } from "@/components/stat-card";
-import { VisitorsChart } from "@/components/visitors-chart";
+import { Suspense } from "react";
 import { ChannelChart } from "@/components/channel-chart";
 import {
   Card,
@@ -10,16 +9,16 @@ import {
 } from "@/components/ui/card";
 import { Reveal } from "@/components/reveal";
 import { parseRange } from "@/lib/ranges";
-import { getVisitors, getStats } from "@/lib/data";
+import { StatsRow, StatsRowSkeleton } from "@/components/stats-row";
+import { VisitorsSection,  VisitorsSectionSkeleton } from "@/components/visitors-section";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ClientOnly } from "@/components/client-only";
 
+// searchParams는 Promise라 async는 유지. 하지만 데이터는 여기서 await하지 않는다.
+// await를 여기 두면 페이지 전체가 그만큼 기다린다.
 export default async function Home(props: PageProps<"/">) {
   const { range } = await props.searchParams;
   const days = parseRange(range);
-
-  // 두 요청을 병렬로. 순차 await하면 워터폴이 생긴다.
-  const [visitors, stats] = await Promise.all([getVisitors(days), getStats()]);
 
   return (
     <main className="min-h-screen bg-background">
@@ -37,9 +36,9 @@ export default async function Home(props: PageProps<"/">) {
         </header>
 
         <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat, i) => (
-            <StatCard key={stat.title} {...stat} delay={i * 120} />
-          ))}
+          <Suspense fallback={<StatsRowSkeleton />}>
+            <StatsRow />
+          </Suspense>
         </section>
 
         <section className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
@@ -50,7 +49,12 @@ export default async function Home(props: PageProps<"/">) {
                 <CardDescription>일별 순 방문자 수</CardDescription>
               </CardHeader>
               <CardContent>
-                <VisitorsChart days={days} data={visitors} />
+                <Suspense
+                  key={days}
+                  fallback={<VisitorsSectionSkeleton />}
+                >
+                  <VisitorsSection days={days} />
+                </Suspense>
               </CardContent>
             </Card>
           </Reveal>

@@ -17,9 +17,9 @@ const data = [
 
 export function ChannelChart() {
   return (
-    <ClientOnly fallback={<div className="h-[300px]" />}>
+    <ClientOnly fallback={<div className="h-75" />}>
       <div className="flex flex-col items-center gap-4">
-        <div className="flex h-[260px] items-center justify-center">
+        <div className="flex h-65 items-center justify-center">
           <PieChart data={data} size={220} innerRadius={60} padAngle={0.02}>
             {data.map((_, i) => (
               <PieSlice key={i} index={i} />
@@ -35,7 +35,7 @@ export function ChannelChart() {
             <li key={d.label} className="flex items-center gap-2">
               <span
                 aria-hidden
-                className="size-2.5 shrink-0 rounded-[2px]"
+                className="size-2.5 shrink-0 rounded-xs"
                 style={{ background: d.color }}
               />
               <span className="text-foreground">{d.label}</span>
