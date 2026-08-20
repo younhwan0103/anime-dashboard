@@ -186,3 +186,23 @@
     @apply font-sans;
   }
 }
+
+@property --num {
+  syntax: "<integer>";
+  initial-value: 0;
+  inherits: false;
+}
+
+.css-counter {
+  --num: 0;
+  transition: --num 1600ms cubic-bezier(0.16, 1, 0.3, 1);
+  counter-reset: num var(--num);
+}
+
+.css-counter::after {
+  content: counter(num);
+}
+
+.css-counter[data-active="true"] {
+  --num: 12480;
+}

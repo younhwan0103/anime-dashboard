@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import { StaggerDemo } from "./stagger-demo";
 import { ScrollDemo } from "./scroll-demo";
+import { NumberDemo } from "./number-demo";
 
 export const metadata: Metadata = {
   title: "실험실 | 애니메이션 대시보드",
@@ -34,11 +35,19 @@ export default function LabPage() {
           >
             <StaggerDemo />
           </LabSection>
+
           <LabSection
             title="스크롤 트리거"
             description="직접 만든 use-in-view vs Anime.js onScroll()"
           >
             <ScrollDemo />
+          </LabSection>
+
+          <LabSection
+            title="숫자 트위닝"
+            description="Anime.js(명령형) / NumberFlow(선언형) / CSS @property(네이티브)"
+          >
+            <NumberDemo />
           </LabSection>
         </div>
       </div>

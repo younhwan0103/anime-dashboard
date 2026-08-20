@@ -42,18 +42,21 @@ export function ScrollDemo() {
     // 안 그러면 이미 지나간 위치에서 시작해 차이가 안 보인다.
     scroller.scrollTop = 0;
 
-    // ⚠️ 0단계에서 확인한 옵션 이름으로 맞추세요.
-    const scrollSettings = {
+    // once는 sync를 쓰지 않는다 (진입 시 한 번 재생하고 끝)
+    const sync =
+      mode.key === "replay"
+        ? "play reverse"
+        : mode.key === "sync"
+          ? true
+          : false;
+
+    const scroll = onScroll({
       container: scroller,
-      enter: "bottom top", // 대상의 아래가 컨테이너 위에 닿을 때
+      enter: "bottom top",
       leave: "top bottom",
       debug,
-      ...(mode.key === "once" && {}),
-      ...(mode.key === "replay" && { sync: "play reverse" }),
-      ...(mode.key === "sync" && { sync: true }),
-    };
-
-    const scroll = onScroll(scrollSettings);
+      sync,
+    });
 
     const anim = animate(targets, {
       opacity: [0, 1],
