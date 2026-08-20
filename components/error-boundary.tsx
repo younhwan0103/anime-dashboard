@@ -3,13 +3,13 @@
 import { Component, type ReactNode } from "react";
 
 type Props = {
-    children: ReactNode;
-    fallback: ReactNode;
-}
+  children: ReactNode;
+  fallback: ReactNode;
+};
 
 type State = {
-    hasError: boolean;
-}
+  hasError: boolean;
+};
 
 /**
  * 에러 경계는 클래스 컴포넌트로만 만들 수 있다.

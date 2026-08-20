@@ -1,13 +1,22 @@
 import { Suspense } from "react";
 import { ChannelChart } from "@/components/channel-chart";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
 import { Reveal } from "@/components/reveal";
 import { parseRange } from "@/lib/ranges";
 import { StatsRow, StatsRowSkeleton } from "@/components/stats-row";
-import { VisitorsSection, VisitorsSectionSkeleton } from "@/components/visitors-section";
+import {
+  VisitorsSection,
+  VisitorsSectionSkeleton,
+} from "@/components/visitors-section";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ClientOnly } from "@/components/client-only";
-import { ErrorBoundary } from "@/components/error-boudary";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { SectionError } from "@/components/section-error";
 
 // searchParams는 Promise라 async는 유지. 하지만 데이터는 여기서 await하지 않는다.
@@ -26,13 +35,12 @@ export default async function Home(props: PageProps<"/">) {
               최근 {days}일 지표를 확인하세요.
             </p>
           </div>
-          <ClientOnly fallback={<div className="size-8" />}>
-            <ThemeToggle />
-          </ClientOnly>
         </header>
 
         <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <ErrorBoundary fallback={<SectionError message="지표를 불러오지 못했습니다" />}>
+          <ErrorBoundary
+            fallback={<SectionError message="지표를 불러오지 못했습니다" />}
+          >
             <Suspense fallback={<StatsRowSkeleton />}>
               <StatsRow />
             </Suspense>
