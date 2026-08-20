@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { StaggerDemo } from "./stagger-demo";
+import { ScrollDemo } from "./scroll-demo";
 
 export const metadata: Metadata = {
   title: "실험실 | 애니메이션 대시보드",
@@ -32,6 +33,12 @@ export default function LabPage() {
             description="수동 delay 계산 vs Anime.js stagger()"
           >
             <StaggerDemo />
+          </LabSection>
+          <LabSection
+            title="스크롤 트리거"
+            description="직접 만든 use-in-view vs Anime.js onScroll()"
+          >
+            <ScrollDemo />
           </LabSection>
         </div>
       </div>
