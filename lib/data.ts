@@ -46,6 +46,7 @@ export async function getVisitors(days: Range): Promise<VisitorPoint[]> {
 
 export async function getStats(): Promise<Stat[]> {
   await sleep(FAKE_LATENCY_MS);
+  // throw new Error("의도적 실패 !! - 테스트용");
 
   return [
     { title: "총 방문자", value: 12480, change: 12.5 },

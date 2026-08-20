@@ -1,6 +1,6 @@
 import { getStats } from "@/lib/data";
 import { StatCard } from "@/components/stat-card";
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "./ui/skeleton";
 
 // "use client" 없음 — 서버 컴포넌트다. 여기서 await해야 이 지점만 서스펜드된다.

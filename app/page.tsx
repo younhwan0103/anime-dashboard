@@ -1,18 +1,14 @@
 import { Suspense } from "react";
 import { ChannelChart } from "@/components/channel-chart";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Reveal } from "@/components/reveal";
 import { parseRange } from "@/lib/ranges";
 import { StatsRow, StatsRowSkeleton } from "@/components/stats-row";
-import { VisitorsSection,  VisitorsSectionSkeleton } from "@/components/visitors-section";
+import { VisitorsSection, VisitorsSectionSkeleton } from "@/components/visitors-section";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ClientOnly } from "@/components/client-only";
+import { ErrorBoundary } from "@/components/error-boudary";
+import { SectionError } from "@/components/section-error";
 
 // searchParams는 Promise라 async는 유지. 하지만 데이터는 여기서 await하지 않는다.
 // await를 여기 두면 페이지 전체가 그만큼 기다린다.
@@ -36,9 +32,11 @@ export default async function Home(props: PageProps<"/">) {
         </header>
 
         <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Suspense fallback={<StatsRowSkeleton />}>
-            <StatsRow />
-          </Suspense>
+          <ErrorBoundary fallback={<SectionError message="지표를 불러오지 못했습니다" />}>
+            <Suspense fallback={<StatsRowSkeleton />}>
+              <StatsRow />
+            </Suspense>
+          </ErrorBoundary>
         </section>
 
         <section className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
@@ -49,10 +47,7 @@ export default async function Home(props: PageProps<"/">) {
                 <CardDescription>일별 순 방문자 수</CardDescription>
               </CardHeader>
               <CardContent>
-                <Suspense
-                  key={days}
-                  fallback={<VisitorsSectionSkeleton />}
-                >
+                <Suspense fallback={<VisitorsSectionSkeleton />}>
                   <VisitorsSection days={days} />
                 </Suspense>
               </CardContent>
