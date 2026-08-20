@@ -14,8 +14,6 @@ import {
   VisitorsSection,
   VisitorsSectionSkeleton,
 } from "@/components/visitors-section";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { ClientOnly } from "@/components/client-only";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { SectionError } from "@/components/section-error";
 

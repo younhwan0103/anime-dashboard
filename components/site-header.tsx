@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { ClientOnly } from "./client-only";
-import { ThemeToggle } from "./theme-toggle";
+import { ClientOnly } from "@/components/client-only";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const NAV = [
   { href: "/", label: "대시보드" },

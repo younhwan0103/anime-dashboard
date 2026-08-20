@@ -7,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { StaggerDemo } from "./stagger-demo";
 
 export const metadata: Metadata = {
   title: "실험실 | 애니메이션 대시보드",
@@ -30,7 +31,7 @@ export default function LabPage() {
             title="스태거"
             description="수동 delay 계산 vs Anime.js stagger()"
           >
-            {/* 여기에 실험을 붙인다 */}
+            <StaggerDemo />
           </LabSection>
         </div>
       </div>
