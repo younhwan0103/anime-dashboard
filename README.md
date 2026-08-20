@@ -25,6 +25,7 @@ Node 20 이상 필요 (개발 환경: Node 22.23.2, pnpm 11).
 
 ```bash
 pnpm build         # 타입 검사 포함. 커밋 전 필수
+pnpm lint          # ESLint
 pnpm format        # Prettier
 pnpm format:check  # 포맷 검사만
 ```
@@ -40,31 +41,51 @@ pnpm format:check  # 포맷 검사만
 - **기간 선택** — 7/14/30일. 상태를 URL 쿼리(`?range=`)에 두고 서버가 렌더
 - **데이터 레이어 분리** — `lib/data.ts`의 서버 전용 함수가 데이터 생성, 서버 컴포넌트가 props로 전달
 - **검증된 색상 팔레트** — 5색 카테고리형, 라이트/다크 각각 별도 단계. 색각이상 분리·표면 대비를 스크립트로 검증
+- **스트리밍** — 껍데기를 먼저 보내고 데이터가 준비되는 대로 교체. 구역별 `<Suspense>` + 치수를 맞춘 스켈레톤
+- **에러 격리** — 구역 하나가 실패해도 나머지는 산다. 직접 만든 `ErrorBoundary` + 라우트 전체용 `app/error.tsx`
 - **실험실** — `/lab`. 컴포넌트와 애니메이션을 대시보드와 분리해 시험하는 라우트
 
 ## 구조
 
 ```
 app/
-  layout.tsx          ThemeProvider 배선, metadata
-  page.tsx            서버 컴포넌트. searchParams 읽고 데이터 로드
-  globals.css         shadcn + Bklit 토큰 (:root / .dark)
+  layout.tsx           루트. ThemeProvider + 공통 네비게이션
+  page.tsx             대시보드. searchParams만 읽고 데이터는 await하지 않는다 → ƒ 동적
+  error.tsx            라우트 전체 에러 (클라이언트 컴포넌트)
+  globals.css          shadcn + Bklit 토큰 (:root / .dark), @property --num
+  lab/
+    page.tsx           실험실. 데이터도 searchParams도 없다 → ○ 정적
+    stagger-demo.tsx   실험 1
+    scroll-demo.tsx    실험 2
+    number-demo.tsx    실험 3
 lib/
-  ranges.ts           기간 상수·타입·파싱 — 서버/클라이언트 공용 (표시 없음)
-  data.ts             데이터 조회 — 서버 전용 (`server-only`)
-  utils.ts            cn()
+  ranges.ts            기간 상수·타입·파싱 — 서버/클라이언트 공용 (표시 없음)
+  data.ts              데이터 조회 — 서버 전용 (`server-only`)
+  utils.ts             cn()
+hooks/
+  use-in-view.ts       IntersectionObserver 래퍼 (한 번만 감지)
 components/
-  visitors-chart.tsx  클라이언트. 데이터는 prop, 기간 변경은 router.push
-  channel-chart.tsx   클라이언트. 도넛
-  stat-card.tsx       클라이언트. Anime.js 카운트업
-  reveal.tsx          클라이언트. 스크롤 등장
-  client-only.tsx     마운트 후 렌더 래퍼
-  theme-provider.tsx  next-themes 래퍼
-  theme-toggle.tsx    라이트/다크 토글
-  charts/             Bklit registry 복사본 (Prettier 제외 대상)
+  site-header.tsx      클라이언트. usePathname으로 활성 링크 표시
+  stats-row.tsx        서버. getStats를 await → 이 지점만 서스펜드
+  visitors-section.tsx 서버. getVisitors를 await → 이 지점만 서스펜드
+  visitors-chart.tsx   클라이언트. 데이터는 prop, 기간 변경은 router.push
+  channel-chart.tsx    클라이언트. 도넛 + 범례
+  stat-card.tsx        클라이언트. Anime.js 카운트업
+  reveal.tsx           클라이언트. 스크롤 등장
+  client-only.tsx      마운트 후 렌더 래퍼
+  error-boundary.tsx   클라이언트. 구역 단위 에러 격리 (클래스 컴포넌트)
+  section-error.tsx    에러 fallback UI
+  theme-provider.tsx   next-themes 래퍼
+  theme-toggle.tsx     라이트/다크 토글
+  ui/                  shadcn (badge, button, card, separator, skeleton, table, tabs)
+  charts/              Bklit registry 복사본 (Prettier 제외 대상)
 ```
 
 `lib/` 안의 두 모듈이 성격이 다르다. `ranges.ts`는 양쪽이 함께 쓰는 순수 모듈이라 아무 표시가 없고, `data.ts`는 `import "server-only"`로 클라이언트 번들 유입을 컴파일 타임에 막는다. 같은 디렉터리에 있어도 경계가 코드 한 줄로 드러난다.
+
+`stats-row.tsx`와 `visitors-section.tsx`는 얇지만 역할이 분명하다. **서버에서 `await`하고 결과를 클라이언트 컴포넌트에 넘기는 것**이 전부다. 이 층이 있어야 `page.tsx`가 데이터를 기다리지 않고, 그래야 스트리밍이 성립한다.
+
+빌드 출력에서 `ƒ /`와 `○ /lab`이 나란히 찍히는 것도 볼 만하다. 같은 앱 안에서 동적 렌더와 정적 프리렌더가 공존하고, 그 차이를 만든 건 `searchParams`를 읽느냐 마느냐 하나다.
 
 ## 설계 결정
 
@@ -93,13 +114,45 @@ Route Handler는 **브라우저가 호출할 때** 의미가 있다. 지금은 �
 
 대가는 지연이다. 클릭 → 서버 왕복 → 반영이라 즉시 반응하지 않는다. `useTransition`의 `isPending`으로 차트를 흐리게(`opacity-50`) 처리해 메웠다. 스켈레톤으로 비우지 않고 **이전 데이터를 유지한 채** 흐리게 두는 것이 `useTransition`의 요점이다.
 
-### `Promise.all`
+### `Promise.all`에서 Suspense로 — 문제가 사라진 경로
+
+한동안 `page.tsx`가 이렇게 생겼었다.
 
 ```ts
 const [visitors, stats] = await Promise.all([getVisitors(days), getStats()]);
 ```
 
-`await`를 두 줄로 나란히 쓰면 서로 의존하지 않는 요청도 순차 실행된다. `lib/data.ts`에 개발용 지연 400ms를 넣어뒀으므로 직렬은 800ms, 병렬은 400ms. 차이를 Network 탭에서 직접 볼 수 있다.
+`await`를 두 줄로 나란히 쓰면 서로 의존하지 않는 요청도 순차 실행된다. 개발용 지연 400ms 기준으로 직렬은 800ms, 병렬은 400ms다.
+
+**지금 코드에는 이 줄이 없다.** 데이터를 기다리는 `await`를 `StatsRow` / `VisitorsSection`으로 내려보내면서 사라졌다. 두 컴포넌트는 형제라 React가 트리를 훑으며 둘 다 렌더를 시작하고, 각자의 Promise를 독립적으로 기다린다. **병렬을 구조가 보장한다.**
+
+`Promise.all`이 필요했던 건 _같은 함수 안에서 두 번 `await`했기 때문_ 이었다. 그 형태를 없애니 도구도 필요 없어졌다. Route Handler 때와 같은 종류의 결말이다 — 해결이 아니라 소거.
+
+### 대기와 실패를 나누는 두 층
+
+Next.js는 비동기 UI의 두 상태를 각각 두 단위로 제공한다.
+
+|                 | 대기              | 실패              |
+| --------------- | ----------------- | ----------------- |
+| **라우트 전체** | `app/loading.tsx` | `app/error.tsx`   |
+| **부분**        | `<Suspense>`      | `<ErrorBoundary>` |
+
+둘 다 같은 판단을 요구한다. **느린 게 페이지 전체인가, 일부인가.**
+
+이 대시보드는 헤더와 카드 제목이 즉시 그려질 수 있고 데이터 두 개만 느리다. 그래서 `loading.tsx` 대신 구역별 `<Suspense>`를 썼다. 같은 이유로 에러도 `app/error.tsx`에만 맡기지 않았다 — 차트 하나가 실패했다고 대시보드 전체를 날릴 이유가 없다.
+
+`ErrorBoundary`는 React가 기본 제공하지 않아 직접 만들었다. `getDerivedStateFromError`에 대응하는 훅이 없어서 **클래스 컴포넌트로만 만들 수 있다.** 함수형 일색인 코드베이스에서 클래스를 봐야 하는 사실상 유일한 자리다.
+
+중첩 순서는 `ErrorBoundary` 바깥, `Suspense` 안쪽이다. 반대로 하면 서스펜드된 컴포넌트가 실패했을 때 경계가 잡지 못한다.
+
+한편 `Suspense`와 `useTransition`은 **서로 다른 순간**을 맡는다.
+
+| 순간      | 담당                          | 화면                      |
+| --------- | ----------------------------- | ------------------------- |
+| 최초 진입 | `Suspense` fallback           | 스켈레톤                  |
+| 기간 전환 | `useTransition`의 `isPending` | 이전 데이터 유지 + 흐리게 |
+
+`<Suspense key={days}>`로 두면 전환 때도 스켈레톤이 뜬다. 붙였다 떼며 비교한 뒤 제거했다. 화면이 두 번 바뀌는 것보다 이전 데이터를 유지한 채 흐려지는 쪽이 나았다.
 
 ### 색상 팔레트는 고르지 않고 검증했다
 
@@ -129,9 +182,11 @@ Bklit registry에서 복사한 60여 개 파일이다. 포맷하면 기능 변�
 
 `/lab`은 대시보드에 붙이기 전에 시험해보는 자리다. 완성된 화면과 실험이 한 페이지에 있으면 어느 쪽도 제대로 못 본다.
 
-부수 효과가 더 컸다. 라우트가 둘이 되면서 네비게이션을 `layout.tsx`로 올리게 됐고, 그러면서 **레이아웃이 페이지 전환 사이에 재마운트되지 않는다**는 걸 직접 확인했다. 테마 토글이 상태를 유지하는 것도 그래서다. 빌드 출력에 `ƒ /`와 `○ /lab`이 나란히 찍히는 것도 볼 만하다 — 차이를 만든 건 `searchParams`를 읽느냐 마느냐 하나다.
+부수 효과가 더 컸다. 라우트가 둘이 되면서 네비게이션을 `layout.tsx`로 올리게 됐고, 그러면서 **레이아웃이 페이지 전환 사이에 재마운트되지 않는다**는 걸 직접 확인했다. 테마 토글이 상태를 유지하는 것도 그래서다.
 
 `<Link>`와 `router.push`의 쓰임도 갈렸다. 기간 전환은 같은 페이지 안의 상태 변경이라 `router.push`, 페이지 이동은 `<Link>`. `<Link>`는 프리페치와 새 탭 열기가 되고 `router.push`는 안 된다.
+
+실험은 하나의 형태를 따른다. **이미 손으로 구현한 것을 라이브러리 기능으로 바꿔 나란히 놓고 비교한다.** 무엇이 짧아졌는지보다 **짧아진 대가로 무엇을 잃었는지**가 매번 결론이었다.
 
 ### 1. 스태거 — 수동 계산 vs `stagger()`
 
@@ -185,16 +240,18 @@ Anime.js v4의 `onScroll()`은 `autoplay`에 넘기는 방식이라 React 상태
 
 분량 차이 자체가 결과의 절반이다. 나머지 절반은 **분량이 줄어든 대가로 무엇을 잃었는가**다.
 
-| 항목                               | Anime.js | NumberFlow | CSS `@property` |
-| ---------------------------------- | -------- | ---------- | --------------- |
-| 천 단위 구분(`12,480`)             | [ ]      | [ ]        | [ ]             |
-| 자릿수가 바뀔 때 연출              | [ ]      | [ ]        | [ ]             |
-| 감소 방향                          | [ ]      | [ ]        | [ ]             |
-| 이징 세밀 제어                     | [ ]      | [ ]        | [ ]             |
-| 중간 정지·되감기                   | [ ]      | [ ]        | [ ]             |
-| `prefers-reduced-motion` 자동 대응 | [ ]      | [ ]        | [ ]             |
+| 항목                               | Anime.js              | NumberFlow      | CSS `@property`          |
+| ---------------------------------- | --------------------- | --------------- | ------------------------ |
+| 천 단위 구분(`12,480`)             | `toLocaleString`      | `locales` prop  | ❌ `counter()`는 `12480` |
+| 자릿수가 바뀔 때 연출              | ❌ 텍스트 통째 교체   | 자릿수별 롤링   | ❌ 없음                  |
+| 감소 방향                          | `currentRef` 필요     | 자동            | transition 양방향        |
+| 이징 세밀 제어                     | 전체 이징 + 커스텀    | △ 타이밍 옵션만 | `cubic-bezier`           |
+| 중간 정지·되감기                   | `pause()`/`reverse()` | ❌              | ❌                       |
+| `prefers-reduced-motion` 자동 대응 | ❌ 직접 처리          | 내장            | ❌ 직접 미디어쿼리       |
 
-[여기에 표를 채우며 알게 된 것 중 예상과 달랐던 것을 한두 문단으로 적을 것]
+예상과 가장 달랐던 건 **접근성 대응**이었다. 코드가 가장 짧은 NumberFlow가 `prefers-reduced-motion`을 알아서 존중하고, 가장 길게 직접 짠 Anime.js 버전은 아무 대응이 없다. 손으로 짠다는 건 **제어권을 갖는다는 뜻이면서 동시에 챙길 것도 다 떠안는다는 뜻**이었다.
+
+반대로 중간 정지·되감기는 명령형만 된다. `stat-card.tsx`가 카운트업과 카드 등장을 함께 관리하고 있으니, 이 능력을 포기하면 둘을 하나의 시간축으로 묶을 길이 막힌다.
 
 #### CSS 커스텀 프로퍼티에 타입을 붙인다는 것
 
@@ -210,7 +267,7 @@ Anime.js v4의 `onScroll()`은 `autoplay`에 넘기는 방식이라 React 상태
 
 이 프로젝트에서 CSS 커스텀 프로퍼티에 세 번 당했고(트러블슈팅 2·7·9), 원인은 매번 같았다 — **커스텀 프로퍼티는 타입이 없어서 뭐든 받아준다.** `@property`는 거기에 타입을 붙이는 기능이다. 같은 성질의 반대편인 셈이다.
 
-다만 `counter()`로 출력하므로 [천 단위 구분·로케일 포맷에 대해 확인한 결과]. 대시보드의 KPI 카드가 요구하는 포맷을 [만족한다 / 만족하지 못한다].
+다만 `counter()`는 천 단위 구분을 넣을 수 없다. `content: counter(num)`이 출력하는 건 `12480`이고, 로케일 포맷도 없다. 대시보드의 KPI 카드가 요구하는 포맷(`12,480`, `24.1%`, `3.7분`)을 **만족하지 못한다.** CSS만으로 하는 방식은 이 프로젝트에서는 쓸 수 없다는 뜻이다.
 
 #### 이전 값에서 이어서 트윈하기
 
@@ -225,9 +282,11 @@ const counter = { n: currentRef.current };
 
 #### 결정
 
-`stat-card.tsx`는 [그대로 뒀다 / NumberFlow로 바꿨다].
+`stat-card.tsx`는 그대로 뒀다.
 
-[이유. 예를 들어 — 카운트업과 카드 등장을 함께 관리하고 있어서 나중에 createTimeline으로 묶을 여지를 남겼다 / 포맷 요구사항을 NumberFlow가 그대로 만족하고 코드가 1/28로 줄어서 등]
+포맷 요구사항만 보면 NumberFlow가 더 짧고 접근성까지 챙겨준다. 그럼에도 남긴 이유는 위 표의 "중간 정지·되감기" 한 줄이다. `StatCard`는 카드 등장과 카운트업 **두 개의 애니메이션을 함께** 갖고 있고, 이 둘을 하나의 시간축으로 묶으려면 명령형 제어가 필요하다. 선언형으로 옮기면 그 길이 막힌다.
+
+바꿔 말하면, **지금 대시보드에서 Anime.js를 쓰는 근거는 "카운트업이 필요해서"가 아니라 "여러 애니메이션을 조율해야 해서"다.** 실험 3의 진짜 소득은 그 근거를 명확히 한 것이었다.
 
 ## 트러블슈팅
 
@@ -363,6 +422,45 @@ DOM 검사에서 `<div style="width:100%;height:100%"></div>`가 비어 있는 �
 
 원칙은 **단일 계열은 슬롯 1을 쓴다**는 것. 라인 차트는 시리즈가 하나뿐이라 팔레트 중간을 집어 쓸 이유가 없었다. 애초에 `--chart-3`이었던 건 Bklit 기본값을 그대로 둔 결과였다.
 
+### 9. 세미콜론 하나 — CSS 오타에 세 번째로 당했다
+
+트러블슈팅 8에서 `--chart-line-primary`를 슬롯 1로 옮기다가 이렇게 적었다.
+
+```css
+--chart-line-primary: var(--chart-1) --chart-line-secondary: var(--chart-2);
+```
+
+첫 줄 끝에 `;`가 없다. 증상은 트러블슈팅 2와 똑같았다 — 라인 차트의 선이 사라졌다.
+
+CSS 커스텀 프로퍼티의 값은 **다음 `;` 또는 `}`가 나올 때까지의 토큰 전부**다. 따라서 파서가 읽은 결과는 이렇게 된다.
+
+- `--chart-line-primary` = `"var(--chart-1) --chart-line-secondary: var(--chart-2)"`
+- `--chart-line-secondary` = 정의되지 않음
+
+`stroke: var(--chart-line-primary)`로 치환하면 `stroke`에 말이 안 되는 값이 들어가고, invalid at computed-value time이 되어 초기값 `none`으로 떨어진다. 그래서 선이 안 그려졌다.
+
+**무서운 건 이게 문법 오류조차 아니라는 점이다.** 커스텀 프로퍼티는 거의 모든 토큰 열을 값으로 받아주므로 파서 입장에선 완벽히 정상인 선언이다. `pnpm build`도 통과한다.
+
+Prettier도 못 잡는다. 이미 "하나의 선언"으로 파싱된 뒤라 그 형태를 그대로 출력할 뿐이다. **포매터와 린터는 다른 일을 한다.**
+
+CSS 오타에 당한 세 번을 나란히 놓으면 이렇다.
+
+| #   | 오타                          | 파서에겐 | 잡아줄 도구        |
+| --- | ----------------------------- | -------- | ------------------ |
+| 2   | `var(----chart-line-primary)` | 정상     | stylelint          |
+| 7   | `.dark` 값이 `:root`와 동일   | 정상     | 없음 (사람의 판단) |
+| 9   | 세미콜론 누락                 | 정상     | stylelint          |
+
+세 번 다 빌드가 통과했고, 세 번 다 증상이 "선이 안 보인다"였다. **타입 시스템이 지켜주는 영역 바깥에서는 같은 실수가 반복된다.** 실험 3에서 만난 `@property`가 바로 그 영역에 타입을 붙이는 기능이라는 게 우연이 아니다.
+
+### 10. 마크다운도 빌드가 검사하지 않는다
+
+README에 실험 기록을 붙여넣다가 코드펜스를 닫지 않았다. Prettier가 백틱 4개로 escalate하며 봉합했고, 그 결과 `## 트러블슈팅` 섹션 하나가 통째로 코드블록 안에 삼켜졌다.
+
+`pnpm format`도 `pnpm build`도 통과했다. GitHub에서 렌더된 화면을 보고서야 알았다.
+
+트러블슈팅 5의 _"dev는 통과, build는 실패"_ 와 같은 종류다. **도구가 검사하는 범위 밖은 결국 눈으로 봐야 한다.** 문서도 결과물이므로 렌더 확인이 곧 문서의 `pnpm build`다.
+
 ## 배운 것
 
 - shadcn registry 방식의 트레이드오프: 배포자의 버그도 그대로 복사되지만, **소스가 내 프로젝트에 있으니 직접 고칠 수 있다**
@@ -373,8 +471,11 @@ DOM 검사에서 `<div style="width:100%;height:100%"></div>`가 비어 있는 �
 - **디자인 토큰이 있다고 다크모드가 자동으로 되는 건 아니다** — 구조는 자동이지만 값은 사람이 정해야 한다
 - **상태 소스가 둘이면 반드시 어긋난다.** URL에 둘 수 있는 상태는 URL에 두는 게 뒤로가기·링크 공유까지 공짜로 준다
 - **서버 컴포넌트에서 자기 API를 fetch하지 않는다.** 함수를 그냥 호출하면 된다
-- `await`를 나란히 쓰면 순차 실행된다. 독립적인 요청은 `Promise.all`
+- `await`를 나란히 쓰면 순차 실행된다. 독립적인 요청은 `Promise.all` — 다만 구조를 바꾸면 그 문제 자체가 사라지기도 한다
+- **`await`의 위치가 곧 기다리는 범위다** — `page.tsx`에서 기다리면 페이지 전체가, 자식에서 기다리면 그 자식만 기다린다
+- **"전체냐 부분이냐"는 대기와 실패에 똑같이 적용된다** — `loading.tsx`/`error.tsx`는 라우트 단위, `<Suspense>`/`<ErrorBoundary>`는 구역 단위
 - 들여쓰기를 손으로 두 번 고쳤다면 포매터를 넣을 때다. 규율은 사람보다 도구가 잘 지킨다
+- **포매터와 린터는 다른 일을 한다** — Prettier는 모양만 본다. 미사용 import도 CSS 세미콜론도 못 잡는다
 - **가설이 빗나간 기록이 맞은 기록보다 쓸모 있다** (트러블슈팅 7)
 - **색은 취향이 아니라 계산이다** — 색각이상 분리와 표면 대비는 눈으로 판단할 수 없다. 스크립트를 돌리면 5분이고, 안 돌리면 못 읽는 사람이 생긴다
 - **대비 경고는 색을 바꾸라는 뜻만이 아니다** — "색 말고 다른 경로를 하나 더 두라"는 뜻이기도 하다. 도넛의 범례는 그래서 생겼다
@@ -385,28 +486,34 @@ DOM 검사에서 `<div style="width:100%;height:100%"></div>`가 비어 있는 �
 - **타입 정의 파일이 문서다** — `node_modules/*/types/index.d.ts`가 블로그 글보다 정확하고, 버전도 정확히 일치한다
 - **CSS 커스텀 프로퍼티는 타입을 등록해야 애니메이션된다** — `@property`의 `syntax`가 없으면 브라우저가 보간하지 않고 점프한다
 - **선언형은 짧고 명령형은 제어된다** — 정지·되감기·다른 애니메이션과의 조율이 필요하면 명령형, 값만 보여주면 되면 선언형
+- **짧은 코드가 접근성을 더 챙기기도 한다** — 손으로 짠다는 건 제어권을 갖는 대신 챙길 것도 다 떠안는다는 뜻이다
 - **의존성 목록을 먼저 볼 것** — `@number-flow/react`는 이미 설치돼 있었다. 없는 줄 알고 직접 구현한 기능이 프로젝트 안에 있었다
+- **문서도 렌더해서 확인해야 한다** — 마크다운 구조는 어떤 빌드 도구도 검사하지 않는다 (트러블슈팅 10)
 
 ## 남은 과제
 
+### 완료
+
 - [x] `next-themes` 다크모드 — 구조는 토큰이 처리했지만 차트 색상값은 수동 보정 필요했다 (트러블슈팅 7)
 - [x] 데이터를 서버 레이어로 분리 (`lib/data.ts`)
-- [~] Route Handler로 실제 데이터 연결 — URL 기반 서버 렌더로 대체. 필요가 사라졌다 ([설계 결정](#왜-route-handler를-만들지-않았나))
 - [x] `components/channel-chart.tsx`의 hex 색상을 토큰으로 — 팔레트를 새로 설계하는 작업이었다 (트러블슈팅 8)
-- [ ] `lib/data.ts`의 `new Date()` 타임존 — 로컬은 KST지만 배포 시 서버가 UTC라 "오늘"이 하루 밀린다
-- [ ] `FAKE_LATENCY_MS` 제거 또는 개발 환경 한정
-- [ ] `docs/screenshot.png` 갱신 (다크모드 적용 전 화면)
-- [ ] `loading.tsx` / Suspense 경계 — 지금은 `useTransition`이 전환만 가려주고 최초 로드는 그대로 기다린다
-- [ ] `error.tsx` — 데이터 조회가 실패하면 페이지 전체가 죽는다
-- [ ] 색각이상 시뮬레이션 실물 확인 (DevTools > Rendering > Emulate vision deficiencies)
+- [x] Suspense 경계 — 구역별 `<Suspense>`로 처리. `loading.tsx`는 범위가 라우트 전체라 쓰지 않았다
+- [x] `error.tsx` + 구역 단위 `ErrorBoundary` — 한 구역이 죽어도 나머지는 산다
 - [x] 실험실 라우트 `/lab`
 - [x] 실험 1 — 스태거
 - [x] 실험 2 — 스크롤 트리거 (`onScroll` vs `use-in-view`)
-- [ ] `reveal.tsx` 교체 여부 결정 (실험 2의 결론 반영)
 - [x] 실험 3 — 숫자 트위닝 3종
-- [ ] `stat-card.tsx`가 이전 값에서 이어서 트윈하도록 (실험 3에서 만든 `currentRef` 방식)
+- [~] Route Handler로 실제 데이터 연결 — URL 기반 서버 렌더로 대체. 필요가 사라졌다
+
+### 남음
+
 - [ ] 실험 4 — `createTimeline()`으로 `StatCard`의 애니메이션 2개 묶기
-
-```
-
-```
+- [ ] `stat-card.tsx`가 이전 값에서 이어서 트윈하도록 (실험 3의 `currentRef` 방식)
+- [ ] `reveal.tsx` 교체 여부 결정 (실험 2의 결론 반영)
+- [ ] `lib/data.ts`의 `new Date()` 타임존 — 로컬은 KST지만 배포 시 서버가 UTC라 "오늘"이 하루 밀린다
+- [ ] `FAKE_LATENCY_MS` 제거 또는 개발 환경 한정
+- [ ] `docs/screenshot.png` 갱신 (다크모드 적용 전 화면)
+- [ ] 색각이상 시뮬레이션 실물 확인 (DevTools > Rendering > Emulate vision deficiencies)
+- [ ] stylelint 도입 — CSS 오타에 세 번 당했다 (트러블슈팅 2·7·9)
+- [ ] `pnpm lint` 통과시키기
+- [ ] 배포 (Vercel) — 타임존·`FAKE_LATENCY_MS`·스크린샷이 한 번에 정리된다

@@ -10,6 +10,7 @@ import {
 import { StaggerDemo } from "./stagger-demo";
 import { ScrollDemo } from "./scroll-demo";
 import { NumberDemo } from "./number-demo";
+import { TimelineDemo } from "./timeline-demo";
 
 export const metadata: Metadata = {
   title: "실험실 | 애니메이션 대시보드",
@@ -48,6 +49,13 @@ export default function LabPage() {
             description="Anime.js(명령형) / NumberFlow(선언형) / CSS @property(네이티브)"
           >
             <NumberDemo />
+          </LabSection>
+
+          <LabSection
+            title="타임라인"
+            description="animate() 두 개 vs createTimeline() 하나의 시간축"
+          >
+            <TimelineDemo />
           </LabSection>
         </div>
       </div>
