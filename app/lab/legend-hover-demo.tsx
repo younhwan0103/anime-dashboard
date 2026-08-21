@@ -91,7 +91,7 @@ export function LegendHoverDemo() {
                   onFocus={() => setHoveredIndex(i)}
                   onBlur={() => setHoveredIndex(null)}
                   className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition-opacity transition-colors",
+                    "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition-opacity",
                     "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                     hoveredIndex === i
                       ? "bg-secondary"

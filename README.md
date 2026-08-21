@@ -60,6 +60,7 @@ app/
     number-demo.tsx    실험 3
     timeline-demo.tsx  실험 4
     table-toggle-demo.tsx  실험 5
+    legend-hover-demo.tsx 실험 6
 lib/
   ranges.ts            기간 상수·타입·파싱 — 서버/클라이언트 공용 (표시 없음)
   data.ts              데이터 조회 — 서버 전용 (`server-only`)
@@ -435,6 +436,66 @@ Base UI의 `Tabs.Panel`에는 `keepMounted` 옵션이 있다. 켜면 숨은 패�
 
 `<TableCell>`에 직접 `flex`를 주면 `<td>`의 표 레이아웃 참여가 깨져 열 너비 정렬이 무너진다. 안쪽에 `<span>` 래퍼를 하나 두는 게 정석이다.
 
+### 6. 범례 hover 연동 — 구현이 아니라 배선이었다
+
+도넛 범례에 마우스를 올리면 해당 조각만 남고 나머지가 흐려지게 만들려 했다. 시작하며 `chart-legend-hover.tsx`와 `series-hover-dim.tsx`를 쓸 거라고 예상했는데, 열어보니 **둘 다 라인/시리즈 차트용**이었다. 파이는 `pie-context.tsx`라는 별도 컨텍스트를 쓴다.
+
+그리고 더 중요한 것 — **필요한 기능이 전부 이미 구현돼 있었다.**
+
+| 파일             | 이미 하는 일                                             |
+| ---------------- | -------------------------------------------------------- |
+| `pie-slice.tsx`  | `isHovered` / `isFaded` 계산, 비호버 조각 `opacity: 0.4` |
+| `pie-slice.tsx`  | `hoverEffect`: `translate` / `grow` / `none`             |
+| `pie-center.tsx` | 호버된 조각의 레이블·값을 중앙에 표시                    |
+| `pie-chart.tsx`  | **`hoveredIndex` prop + `onHoverChange` 콜백**           |
+
+마지막 줄이 전부였다. 새로 만든 코드는 없고, **hover 상태를 차트 밖으로 끌어올리기만 했다.**
+
+#### controlled / uncontrolled
+
+```tsx
+<PieChart hoveredIndex={hoveredIndex} onHoverChange={setHoveredIndex}>
+```
+
+이 두 줄을 빼면 `PieChart`가 내부 상태로 알아서 동작한다. 대시보드의 `channel-chart.tsx`가 지금 그 상태다.
+
+| 방식       | 소유자          | 범례가 접근 |
+| ---------- | --------------- | ----------- |
+| prop 안 줌 | `PieChart` 내부 | 불가        |
+| prop 줌    | 부모 컴포넌트   | 가능        |
+
+`<input value onChange>`와 완전히 같은 구조다. **잘 설계된 컴포넌트는 둘 다 지원한다** — 간단한 경우엔 그냥 쓰고, 다른 것과 엮어야 하면 끌어올린다.
+
+두 줄을 주석 처리해보면 범례 연동이 끊기고 조각만 반응한다. 차이를 눈으로 보는 가장 빠른 방법이었다.
+
+#### 양방향이 코드 없이 됐다
+
+상태가 하나라서 방향이 자동으로 양쪽이 된다.
+
+- 범례에 마우스 → 조각이 튀어나오고 나머지 흐려짐 + 중앙 라벨 변경
+- 조각에 마우스 → 범례 행이 강조됨
+
+두 번째는 코드를 따로 쓰지 않았다. `onHoverChange`가 같은 `setHoveredIndex`를 부르기 때문이다.
+
+**단일 상태 소스의 효과를 세 번째로 만났다.** 기간 선택을 URL로 옮길 때(설계 결정), 도넛 조각과 범례가 같은 배열을 볼 때(실험 5), 그리고 여기서.
+
+#### hover는 마우스에만 있는 개념이다
+
+범례 행을 `<li>`에 `onMouseEnter`만 달아 만들면 **마우스 전용 기능**이 된다. 네 개를 다 달아야 한다.
+
+```tsx
+onMouseEnter / onMouseLeave; // 마우스
+onFocus / onBlur; // 키보드 Tab, 터치
+```
+
+그리고 포커스를 받으려면 요소가 포커스 가능해야 한다. `<li>`는 아니다. `tabIndex={0}`을 붙일 수도 있지만, 눌러서 뭔가 하는 요소는 `<button>`이 맞다 — 스크린리더가 "버튼"이라고 알려주고 Enter/Space도 자동이다.
+
+실험 5의 결론은 _"접근성은 명세가 정해진 영역이라 라이브러리가 더 잘한다"_ 였는데, 여기서는 **범례를 우리가 만들었으므로 라이브러리가 해줄 게 없었다.** 같은 원칙을 이번엔 직접 지켜야 했다.
+
+#### 남은 문제
+
+터치 기기에는 hover가 없다. `<button>`이라 탭하면 포커스가 잡혀 동작하긴 하지만, 손가락을 떼면 `onBlur`로 풀린다. 클릭으로 hover를 고정하는 모드가 있어야 제대로 쓸 수 있다.
+
 ## 트러블슈팅
 
 ### 1. Bklit registry의 상대경로 import 깨짐
@@ -642,6 +703,9 @@ README에 실험 기록을 붙여넣다가 코드펜스를 닫지 않았다. Pre
 - **접근성은 제어권과 맞바꾸는 대상이 아니다** — 명세가 정해진 영역이라 직접 만들면 대개 일부를 빠뜨린다. 라이브러리를 쓰면서 잃는 게 없는 드문 경우
 - **반올림한 비율의 합은 100%가 아니다** — 정답이 없으니 방식을 고르고 이유를 코드 옆에 남긴다
 - **shadcn이라고 전부 Radix는 아니다** — 이 프로젝트의 `Tabs`는 Base UI 위에 얹혀 있다. 소스를 열어보고 알았다
+- **쓰기 전에 소스를 열어볼 것** — 쓸 거라고 예상한 파일(`chart-legend-hover`)은 라인 차트용이었고, 필요한 기능은 이미 `PieChart`의 prop으로 있었다. 만들기 전에 읽으면 만들 게 없어지기도 한다
+- **controlled / uncontrolled는 소유권의 문제다** — 컴포넌트 안에 갇힌 상태는 밖에서 엮을 수 없다. 잘 만든 컴포넌트는 끌어올릴 길을 열어둔다
+- **hover는 마우스에만 있다** — `onFocus`/`onBlur`를 같이 달고, 포커스 받을 수 있는 요소로 만들어야 마우스 없는 사람도 쓴다
 
 ## 남은 과제
 
@@ -659,6 +723,7 @@ README에 실험 기록을 붙여넣다가 코드펜스를 닫지 않았다. Pre
 - [~] Route Handler로 실제 데이터 연결 — URL 기반 서버 렌더로 대체. 필요가 사라졌다
 - [x] 실험 4 — `createTimeline()`으로 `StatCard`의 애니메이션 2개 묶기
 - [x] 실험 5 — 차트 ↔ 표 토글 (shadcn Tabs + Table, 접근성 대체 경로)
+- [x] 실험 6 — 범례 hover 연동 (controlled hover, 키보드 대응)
 
 ### 남음
 
@@ -671,6 +736,6 @@ README에 실험 기록을 붙여넣다가 코드펜스를 닫지 않았다. Pre
 - [ ] stylelint 도입 — CSS 오타에 세 번 당했다 (트러블슈팅 2·7·9)
 - [ ] `pnpm lint` 통과시키기
 - [ ] 배포 (Vercel) — 타임존·`FAKE_LATENCY_MS`·스크린샷이 한 번에 정리된다
-- [ ] 탭 전환 시 도넛 재마운트 — `keepMounted` 도입 여부 결정 (실험 5)
-- [ ] 대시보드 도넛 카드에도 차트/표 토글 적용할지 결정
-- [ ] 실험 6 — 범례 hover 연동 (`chart-legend-hover` + `series-hover-dim`)
+- [ ] 대시보드 도넛에 범례 hover 연동 적용 (실험 6 결과)
+- [ ] 터치 기기용 — 클릭으로 hover 고정하는 모드
+- [ ] 실험 7 — 예측선 (`projection-line`)
