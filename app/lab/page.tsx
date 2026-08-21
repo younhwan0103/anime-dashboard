@@ -12,6 +12,7 @@ import { ScrollDemo } from "./scroll-demo";
 import { NumberDemo } from "./number-demo";
 import { TimelineDemo } from "./timeline-demo";
 import { TableToggleDemo } from "./table-toggle-demo";
+import { LegendHoverDemo } from "./legend-hover-demo";
 
 export const metadata: Metadata = {
   title: "실험실 | 애니메이션 대시보드",
@@ -64,6 +65,13 @@ export default function LabPage() {
             description="shadcn Tabs + Table. 색을 못 읽는 사람에게도 같은 데이터를"
           >
             <TableToggleDemo />
+          </LabSection>
+
+          <LabSection
+            title="범례 hover 연동"
+            description="controlled hover — 범례와 조각이 같은 상태를 본다"
+          >
+            <LegendHoverDemo />
           </LabSection>
         </div>
       </div>
