@@ -15,7 +15,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CHANNELS, CHANNEL_TOTAL, channelShare } from "@/lib/channels";
+import {
+  CHANNELS,
+  CHANNEL_TOTAL,
+  channelShare,
+  channelSharesRounded,
+} from "@/lib/channels";
 
 // 포매터는 렌더마다 만들지 않고 모듈 스코프에 한번만 !
 const nf = new Intl.NumberFormat("ko-KR");
@@ -25,6 +30,8 @@ const pf = new Intl.NumberFormat("ko-KR", {
 });
 
 export function TableToggleDemo() {
+  const shares = channelSharesRounded();
+
   return (
     <Tabs defaultValue="chart">
       <TabsList>
@@ -61,7 +68,7 @@ export function TableToggleDemo() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {CHANNELS.map((c) => (
+            {CHANNELS.map((c, i) => (
               <TableRow key={c.label}>
                 <TableCell>
                   <span className="flex items-center gap-2">
@@ -79,6 +86,9 @@ export function TableToggleDemo() {
                 <TableCell className="text-right tabular-nums">
                   {pf.format(channelShare(c.value))}%
                 </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {pf.format(shares[i])}%
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -88,7 +98,6 @@ export function TableToggleDemo() {
               <TableCell className="text-right tabular-nums">
                 {nf.format(CHANNEL_TOTAL)}
               </TableCell>
-              {/* ⚠️ 아래 "짚어볼 것 ②"를 읽고 직접 정하세요 */}
               <TableCell className="text-right tabular-nums">100.0%</TableCell>
             </TableRow>
           </TableFooter>
