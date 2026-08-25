@@ -13,6 +13,7 @@ import { NumberDemo } from "./number-demo";
 import { TimelineDemo } from "./timeline-demo";
 import { TableToggleDemo } from "./table-toggle-demo";
 import { LegendHoverDemo } from "./legend-hover-demo";
+import { LayoutTransitionDemo } from "./layout-trasition";
 
 export const metadata: Metadata = {
   title: "실험실 | 애니메이션 대시보드",
@@ -72,6 +73,13 @@ export default function LabPage() {
             description="controlled hover — 범례와 조각이 같은 상태를 본다"
           >
             <LegendHoverDemo />
+          </LabSection>
+
+          <LabSection
+            title="레이아웃 전환 3종"
+            description="수동 FLIP / motion layoutId / View Transitions"
+          >
+            <LayoutTransitionDemo />
           </LabSection>
         </div>
       </div>

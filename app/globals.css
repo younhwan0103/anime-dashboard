@@ -206,3 +206,8 @@
 .css-counter[data-active="true"] {
   --num: 12480;
 }
+
+::view-transition-group(*) {
+  animation-duration: 400ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
