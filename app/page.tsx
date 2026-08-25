@@ -16,6 +16,10 @@ import {
 } from "@/components/visitors-section";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { SectionError } from "@/components/section-error";
+import {
+  ChannelSection,
+  ChannelSectionSkeleton,
+} from "@/components/channel-section";
 
 // searchParams는 Promise라 async는 유지. 하지만 데이터는 여기서 await하지 않는다.
 // await를 여기 두면 페이지 전체가 그만큼 기다린다.
@@ -67,7 +71,15 @@ export default async function Home(props: PageProps<"/">) {
                 <CardDescription>채널별 비중</CardDescription>
               </CardHeader>
               <CardContent>
-                <ChannelChart />
+                <ErrorBoundary
+                  fallback={
+                    <SectionError message="유입 경로를 불러오지 못했습니다" />
+                  }
+                >
+                  <Suspense fallback={<ChannelSectionSkeleton />}>
+                    <ChannelSection />
+                  </Suspense>
+                </ErrorBoundary>
               </CardContent>
             </Card>
           </Reveal>

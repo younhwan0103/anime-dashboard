@@ -45,8 +45,9 @@ export async function updateChannel(
     sameSite: "lax",
   });
 
-  // 이 경로의 캐시를 무효화해 서버 컴포넌트를 다시 렌더한다
-  revalidatePath("/lab");
+  // 루트 레이아웃 아래 전체를 무효화한다.
+  // 쿠키 하나가 두 페이지에 영향을 주므로 범위를 넓혀야 한다.
+  revalidatePath("/", "layout");
 
   return { ok: true };
 }
