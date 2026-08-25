@@ -44,6 +44,7 @@ pnpm format:check  # 포맷 검사만
 - **스트리밍** — 껍데기를 먼저 보내고 데이터가 준비되는 대로 교체. 구역별 `<Suspense>` + 치수를 맞춘 스켈레톤
 - **에러 격리** — 구역 하나가 실패해도 나머지는 산다. 직접 만든 `ErrorBoundary` + 라우트 전체용 `app/error.tsx`
 - **실험실** — `/lab`. 컴포넌트와 애니메이션을 대시보드와 분리해 시험하는 라우트
+- **채널 값 편집** — Server Action이 쿠키에 저장. 낙관적 업데이트로 즉시 반영하고, 서버가 거부하면 되돌아온다
 
 ## 구조
 
@@ -62,17 +63,21 @@ app/
     table-toggle-demo.tsx  실험 5
     legend-hover-demo.tsx 실험 6
     layout-transition/ 실험 7 — 세 방식을 각각 한 파일로
+    channel-editor/        실험 8
 lib/
   ranges.ts            기간 상수·타입·파싱 — 서버/클라이언트 공용 (표시 없음)
   data.ts              데이터 조회 — 서버 전용 (`server-only`)
   utils.ts             cn()
   channels.ts          채널 유입 데이터·비중 계산 — 서버/클라이언트 공용 (표시 없음)
+  actions.ts           Server Actions — "use server"
+  channel-store.ts     쿠키 읽기 — 서버 전용 (`server-only`)
 hooks/
   use-in-view.ts       IntersectionObserver 래퍼 (한 번만 감지)
 components/
   site-header.tsx      클라이언트. usePathname으로 활성 링크 표시
   stats-row.tsx        서버. getStats를 await → 이 지점만 서스펜드
   visitors-section.tsx 서버. getVisitors를 await → 이 지점만 서스펜드
+  channel-section.tsx  서버. 쿠키를 읽어 도넛에 넘긴다
   visitors-chart.tsx   클라이언트. 데이터는 prop, 기간 변경은 router.push
   channel-chart.tsx    클라이언트. 도넛 + 범례
   stat-card.tsx        클라이언트. Anime.js 카운트업
@@ -118,6 +123,41 @@ Route Handler는 **브라우저가 호출할 때** 의미가 있다. 지금은 �
 `useState`를 걷어내고 `router.push`로 바꾸니 서버가 헤더와 차트를 한 번에 계산하므로 어긋날 수가 없다. 뒤로가기와 링크 공유는 공짜로 얻었다.
 
 대가는 지연이다. 클릭 → 서버 왕복 → 반영이라 즉시 반응하지 않는다. `useTransition`의 `isPending`으로 차트를 흐리게(`opacity-50`) 처리해 메웠다. 스켈레톤으로 비우지 않고 **이전 데이터를 유지한 채** 흐리게 두는 것이 `useTransition`의 요점이다.
+
+### 상태가 살 수 있는 네 곳
+
+이 프로젝트는 상태의 위치를 여러 번 옮겼다. 옮길 때마다 얻는 것과 잃는 것이 달랐다.
+
+| 위치           | 무엇          | 서버가 읽나 | 주소에 드러나나 | 지속되나         |
+| -------------- | ------------- | ----------- | --------------- | ---------------- |
+| `useState`     | (기간 — 폐기) | 아니오      | 아니오          | 아니오           |
+| URL 쿼리       | 기간 선택     | **예**      | **예**          | 링크로 공유 가능 |
+| `localStorage` | 테마          | 아니오      | 아니오          | 예 (기기별)      |
+| 쿠키           | 채널 값 편집  | **예**      | 아니오          | 예 (기기별)      |
+
+기간 선택은 **공유되어야 하는 상태**라 URL이 맞았다. "이 링크 봐"가 성립해야 하니까.
+
+채널 값 편집은 다르다. 주소창에 `?검색=5000&SNS=1200`이 붙는 건 이상하고, 그렇다고 `localStorage`에 두면 서버가 못 읽어 첫 렌더에 반영되지 않는다. **서버가 읽으면서 주소에 안 드러나는 곳** — 쿠키가 그 칸이다.
+
+대가도 있다. URL 상태는 주소가 바뀌면 곧 다른 페이지라 캐시 걱정이 없었는데, **쿠키는 주소에 안 드러나므로 무효화를 사람이 챙겨야 한다.** 그래서 `revalidatePath`가 필요해졌다.
+
+### `revalidatePath`의 범위
+
+처음엔 이렇게 썼다.
+
+```ts
+revalidatePath("/lab");
+```
+
+편집기가 실험실에 있으니 맞아 보였다. 그런데 대시보드의 도넛도 같은 쿠키를 읽는다. 값을 바꾸고 대시보드로 가면 **옛 값이 남아 있었다.**
+
+```ts
+revalidatePath("/", "layout");
+```
+
+**무효화 범위가 데이터의 영향 범위와 맞아야 한다.** 좁으면 옛 화면이 남고, 넓으면 불필요한 재렌더가 생긴다. 쿠키 하나가 두 페이지에 영향을 주므로 범위도 그만큼 넓혀야 했다.
+
+같은 실수를 `resetChannels`에서 한 번 더 했다. 함수가 둘이면 고칠 곳도 둘이다.
 
 ### `Promise.all`에서 Suspense로 — 문제가 사라진 경로
 
@@ -557,6 +597,97 @@ document.startViewTransition(() => {
 
 서로 다른 층의 세 도구가 같은 제약을 공유한다. 같은 문제를 풀고 있으니 당연한 일인데, 세 개를 나란히 만들어보기 전에는 보이지 않았다.
 
+### 8. Server Actions + `useOptimistic` — 읽기 전용이던 프로젝트에 쓰기 축
+
+실험 1~7은 전부 표현과 애니메이션이었다. 그동안 이 프로젝트에는 **데이터를 바꾸는 경로가 하나도 없었다.**
+
+#### `"use server"` — Route Handler 없이 쓰기
+
+```ts
+"use server";
+
+export async function updateChannel(label: string, value: number) {
+  // 클라이언트가 호출하지만 실행은 서버에서
+}
+```
+
+파일 맨 위의 한 줄이 여기 export된 함수를 서버 전용으로 만든다. 클라이언트에서 import해 호출하면 Next.js가 **자동으로 POST 요청을 만들어** 서버에서 실행하고 결과를 돌려준다.
+
+우리가 만들지 않은 것 — 엔드포인트 URL, `fetch` 호출, 요청/응답 직렬화, 라우트 핸들러 파일.
+
+README 앞쪽에 _"Route Handler를 만들지 않았다 — 함수를 그냥 호출하면 된다"_ 고 적었는데, **읽기에서 성립했던 논리가 쓰기에서도 성립했다.** 다른 점은 이번엔 진짜로 HTTP 요청이 오간다는 것뿐이다. Network 탭을 열면 보인다. **추상화가 무엇을 감추고 있는지 아는 것과 모르는 것은 다르다.**
+
+#### `server-only`와 `"use server"`는 반대 방향이다
+
+이름이 비슷해서 헷갈리기 쉬운데 역할이 정반대다.
+
+| 표시                   | 의미                                                      |
+| ---------------------- | --------------------------------------------------------- |
+| `import "server-only"` | 클라이언트가 이걸 가져가면 **빌드를 실패시켜라**          |
+| `"use server"`         | 클라이언트가 **호출할 수 있게 하되** 실행은 서버에서 해라 |
+
+`channel-store.ts`는 앞의 것, `actions.ts`는 뒤의 것이다. 같은 `lib/` 안에서 정반대 성질의 파일이 나란히 있다.
+
+#### `useOptimistic` — 롤백 코드를 쓰지 않는다
+
+```tsx
+startTransition(async () => {
+  applyOptimistic({ label, value });        // ① transition 안에서
+  const result = await updateChannel(...);  // ② await는 그 뒤에
+});
+```
+
+둘 다 지켜야 한다. transition 밖에서 호출하면 React가 에러를 내고, `await` 뒤에 호출하면 이미 늦다 — 낙관적 업데이트의 요점이 "기다리기 전에 보여주는 것"이니까.
+
+**되돌리는 코드는 한 줄도 쓰지 않았다.** 서버 응답이 도착해 서버 컴포넌트가 새 `channels`를 내려주면 React가 낙관적 상태를 자동으로 버린다. 서버가 거부했다면 값이 원래대로 돌아온다.
+
+검증 실패를 일부러 만들어 확인했다. 슬라이더를 올리면 값이 즉시 따라 올라갔다가, 700ms 뒤 서버가 거부하면서 **스르륵 제자리로 돌아왔다.** 롤백 로직이 없는데도.
+
+#### 켬/끔 비교
+
+토글로 같은 화면에서 두 방식을 비교했다.
+
+|                     | 낙관적 업데이트 켬         | 끔                  |
+| ------------------- | -------------------------- | ------------------- |
+| 슬라이더를 움직이면 | 숫자가 즉시 따라옴         | 700ms 동안 그대로   |
+| 조작감              | 로컬 상태처럼              | 버튼이 씹힌 것 같음 |
+| 코드                | `useOptimistic` + 규칙 2개 | 없음                |
+
+`useTransition`으로 차트를 흐리게 처리했던 것(기간 전환)과 성격이 다르다. 그때는 **기다린다는 걸 알려준** 것이고, 여기서는 **기다리지 않는 것처럼 보이게** 한다. 전자는 정직하고 후자는 빠르다. 되돌아갈 수 있을 때만 후자를 쓸 수 있다.
+
+#### 쿠키를 읽으면 정적 프리렌더가 끝난다
+
+빌드 출력이 바뀌었다.
+
+```
+┌ ƒ /
+├ ○ /_not-found
+└ ƒ /lab          ← 실험 7까지는 ○ 였다
+```
+
+`/lab`은 데이터도 `searchParams`도 없어서 빌드 시 정적 생성되던 페이지였다. 쿠키를 읽는 순간 요청마다 달라지므로 `ƒ`가 된다.
+
+`ƒ /`가 왜 동적인지 궁금해했던 초기의 질문(답: `searchParams`)에 두 번째 사례가 붙은 셈이다. **정적/동적은 설정이 아니라 코드가 무엇에 의존하는지의 결과다.**
+
+#### 대시보드까지 잇기 — 세 번째 얇은 서버 층
+
+편집한 값이 실험실에서만 반영되고 대시보드 도넛은 상수를 그대로 쓰고 있었다. `channel-section.tsx`를 만들어 이었다.
+
+```
+ErrorBoundary → Suspense → 서버 층(쿠키 읽기) → 클라이언트 차트
+```
+
+`stats-row.tsx` · `visitors-section.tsx`와 **정확히 같은 형태**다. 도넛만 데이터가 상수라 이 구조에서 빠져 있었는데, 이제 세 카드가 같아졌다.
+
+`channel-chart.tsx`의 변화가 요점을 보여준다.
+
+```diff
+- import { CHANNELS } from "@/lib/channels";
++ import type { Channel } from "@/lib/channels";
+```
+
+**값을 가져오던 것이 타입만 가져오게 됐다.** 데이터를 스스로 아는 컴포넌트에서 받아 그리는 컴포넌트가 된 것이다.
+
 ## 트러블슈팅
 
 ### 1. Bklit registry의 상대경로 import 깨짐
@@ -772,6 +903,11 @@ README에 실험 기록을 붙여넣다가 코드펜스를 닫지 않았다. Pre
 - **`transform: scale`은 콘텐츠까지 늘린다** — 역스케일 보정이 필요하고, 그걸 자동으로 해주느냐가 도구를 가른다
 - **네이티브 API와 React를 잇는 지점에도 마찰이 있다** — `flushSync`는 배칭을 끄는 대가를 치른다
 - **파일·디렉터리 이름은 어떤 도구도 검사하지 않는다** — `error-boudary`, `layout-trasition` 두 번 오타. CSS 오타 세 번과 같은 부류다
+- **`server-only`와 `"use server"`는 반대 방향이다** — 하나는 클라이언트 유입을 막고, 하나는 클라이언트가 호출하게 연다
+- **쓰기에도 "함수를 그냥 호출한다"가 성립한다** — Server Action이 엔드포인트·`fetch`·직렬화를 전부 감춘다. 다만 Network 탭에는 POST가 찍힌다
+- **`useOptimistic`은 롤백 코드를 요구하지 않는다** — 서버 데이터가 도착하면 낙관적 상태가 자동으로 버려진다
+- **캐시 무효화 범위는 데이터의 영향 범위와 맞아야 한다** — 쿠키는 주소에 안 드러나므로 사람이 챙겨야 한다. URL 상태에는 없던 부담이다
+- **정적/동적은 설정이 아니라 의존의 결과다** — `searchParams`든 쿠키든, 요청마다 달라지는 걸 읽으면 `○`가 `ƒ`가 된다
 
 ## 남은 과제
 
@@ -791,20 +927,9 @@ README에 실험 기록을 붙여넣다가 코드펜스를 닫지 않았다. Pre
 - [x] 실험 5 — 차트 ↔ 표 토글 (shadcn Tabs + Table, 접근성 대체 경로)
 - [x] 실험 6 — 범례 hover 연동 (controlled hover, 키보드 대응)
 - [x] 실험 7 — 레이아웃 전환 3종 (수동 FLIP / motion `layoutId` / View Transitions)
+- [x] 실험 8 — Server Actions + `useOptimistic` (쿠키 저장, 낙관적 업데이트, 대시보드 역적용)
 
 ### 남음
 
-- [ ] `stat-card.tsx`가 이전 값에서 이어서 트윈하도록 (실험 3의 `currentRef` 방식)
-- [ ] `reveal.tsx` 교체 여부 결정 (실험 2의 결론 반영)
-- [ ] `lib/data.ts`의 `new Date()` 타임존 — 로컬은 KST지만 배포 시 서버가 UTC라 "오늘"이 하루 밀린다
-- [ ] `FAKE_LATENCY_MS` 제거 또는 개발 환경 한정
-- [ ] `docs/screenshot.png` 갱신 (다크모드 적용 전 화면)
-- [ ] 색각이상 시뮬레이션 실물 확인 (DevTools > Rendering > Emulate vision deficiencies)
-- [ ] stylelint 도입 — CSS 오타에 세 번 당했다 (트러블슈팅 2·7·9)
-- [ ] `pnpm lint` 통과시키기
-- [ ] 배포 (Vercel) — 타임존·`FAKE_LATENCY_MS`·스크린샷이 한 번에 정리된다
-- [ ] 대시보드 도넛에 범례 hover 연동 적용 (실험 6 결과)
-- [ ] 터치 기기용 — 클릭으로 hover 고정하는 모드
-- [ ] 실험 8 — Server Actions + `useOptimistic` (읽기 전용 프로젝트에 쓰기 축 열기)
-- [ ] 대시보드 KPI 카드에 레이아웃 전환 적용할지 결정 (실험 7 결과)
-- [ ] 예측선 (`projection-line`) — 실험 순서에서 밀렸다
+- [ ] `lib/actions.ts`의 `FAKE_LATENCY_MS` — `lib/data.ts`와 함께 개발 환경 한정으로
+- [ ] 실험실 세 섹션이 같은 `channels`를 보도록 통일 (편집기만 쿠키를 읽고 나머지는 상수)
