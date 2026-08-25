@@ -13,7 +13,8 @@ import { NumberDemo } from "./number-demo";
 import { TimelineDemo } from "./timeline-demo";
 import { TableToggleDemo } from "./table-toggle-demo";
 import { LegendHoverDemo } from "./legend-hover-demo";
-import { LayoutTransitionDemo } from "./layout-trasition";
+import { LayoutTransitionDemo } from "./layout-transition";
+import { ChannelEditor } from "./channel-editor";
 
 export const metadata: Metadata = {
   title: "실험실 | 애니메이션 대시보드",
@@ -80,6 +81,13 @@ export default function LabPage() {
             description="수동 FLIP / motion layoutId / View Transitions"
           >
             <LayoutTransitionDemo />
+          </LabSection>
+
+          <LabSection
+            title="Server Actions + useOptimistic"
+            description="쿠키에 저장하는 쓰기 경로. 낙관적 업데이트 on/off 비교"
+          >
+            <ChannelEditor />
           </LabSection>
         </div>
       </div>
