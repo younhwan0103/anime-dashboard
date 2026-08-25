@@ -15,14 +15,19 @@ import { TableToggleDemo } from "./table-toggle-demo";
 import { LegendHoverDemo } from "./legend-hover-demo";
 import { LayoutTransitionDemo } from "./layout-transition";
 import { ChannelEditor } from "./channel-editor";
+import { readChannels } from "@/lib/channel-store";
 
 export const metadata: Metadata = {
   title: "실험실 | 애니메이션 대시보드",
   description: "shadcn/ui · Bklit UI · Anime.js 실험 공간",
 };
 
-// 데이터도 searchParams도 없다 → 빌드 시 정적 생성(○)된다.
-export default function LabPage() {
+// readChannels()가 쿠키를 읽으므로 요청별로 channels를 읽는다.
+export default async function LabPage() {
+  // 페이지가 한 번 읽어 세 실험에 같은 배열을 넘긴다.
+  // 실험실 안에서 진실은 하나여야 한다.
+  const channels = await readChannels();
+
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-6xl px-6 pt-8 pb-16">
@@ -66,14 +71,14 @@ export default function LabPage() {
             title="차트 ↔ 표"
             description="shadcn Tabs + Table. 색을 못 읽는 사람에게도 같은 데이터를"
           >
-            <TableToggleDemo />
+            <TableToggleDemo channels={channels} />
           </LabSection>
 
           <LabSection
             title="범례 hover 연동"
             description="controlled hover — 범례와 조각이 같은 상태를 본다"
           >
-            <LegendHoverDemo />
+            <LegendHoverDemo channels={channels} />
           </LabSection>
 
           <LabSection
@@ -87,7 +92,7 @@ export default function LabPage() {
             title="Server Actions + useOptimistic"
             description="쿠키에 저장하는 쓰기 경로. 낙관적 업데이트 on/off 비교"
           >
-            <ChannelEditor />
+            <ChannelEditor channels={channels} />
           </LabSection>
         </div>
       </div>

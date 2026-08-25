@@ -10,7 +10,7 @@ import { PieCenter } from "@/components/charts/pie-center";
 import { ClientOnly } from "@/components/client-only";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { CHANNELS, channelSharesRounded } from "@/lib/channels";
+import type { Channel } from "@/lib/channels";
 
 const EFFECTS = [
   { key: "translate", label: "밀어내기" },
@@ -23,15 +23,16 @@ const pf = new Intl.NumberFormat("ko-KR", {
   maximumFractionDigits: 1,
 });
 
-export function LegendHoverDemo() {
-  // 상태를 여기로 끌어올려야 범례와 조각이 같은 것을 본다.
-  // PieChart 안에 두면 범례가 접근할 방법이 없다.
+export function LegendHoverDemo({ channels }: { channels: Channel[] }) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-
   const [effect, setEffect] = useState<PieSliceHoverEffect>("translate");
   const [showGlow, setShowGlow] = useState(true);
 
-  const shares = channelSharesRounded();
+  const total = channels.reduce((sum, channel) => sum + channel.value, 0);
+
+  const shares = channels.map((channel) =>
+    total === 0 ? 0 : (channel.value / total) * 100
+  );
 
   return (
     <div className="space-y-4">
@@ -46,6 +47,7 @@ export function LegendHoverDemo() {
             {e.label}
           </Button>
         ))}
+
         <Button
           size="sm"
           variant={showGlow ? "default" : "ghost"}
@@ -59,16 +61,15 @@ export function LegendHoverDemo() {
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-center sm:gap-8">
           <div className="flex h-65 shrink-0 items-center justify-center">
             <PieChart
-              data={CHANNELS}
+              data={channels}
               size={220}
               innerRadius={60}
               padAngle={0.02}
               hoverOffset={10}
-              // 이 두 줄이 controlled로 만든다. 주지 않으면 내부 상태로 동작.
               hoveredIndex={hoveredIndex}
               onHoverChange={setHoveredIndex}
             >
-              {CHANNELS.map((_, i) => (
+              {channels.map((_, i) => (
                 <PieSlice
                   key={i}
                   index={i}
@@ -76,13 +77,13 @@ export function LegendHoverDemo() {
                   showGlow={showGlow}
                 />
               ))}
+
               <PieCenter defaultLabel="총 유입" />
             </PieChart>
           </div>
 
-          {/* 범례 — hover만이 아니라 focus에도 반응해야 키보드로 쓸 수 있다 */}
           <ul className="w-full max-w-56 space-y-0.5 text-sm">
-            {CHANNELS.map((c, i) => (
+            {channels.map((c, i) => (
               <li key={c.label}>
                 <button
                   type="button"
@@ -104,7 +105,9 @@ export function LegendHoverDemo() {
                     className="size-2.5 shrink-0 rounded-xs"
                     style={{ background: c.color }}
                   />
+
                   <span>{c.label}</span>
+
                   <span className="ml-auto tabular-nums text-muted-foreground">
                     {pf.format(shares[i])}%
                   </span>

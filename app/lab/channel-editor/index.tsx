@@ -1,9 +1,8 @@
-import { readChannels } from "@/lib/channel-store";
 import { ChannelEditorForm } from "./form";
+import type { Channel } from "@/lib/channels";
 
-// "use client" 없음 — 쿠키를 읽어야 하므로 서버 컴포넌트다.
-// 이 컴포넌트 때문에 /lab이 정적(○)에서 동적(ƒ)으로 바뀐다.
-export async function ChannelEditor() {
-  const channels = await readChannels();
+// 서버 컴포넌트.
+// channels는 page.tsx에서 한 번 읽어 prop으로 전달받는다.
+export function ChannelEditor({ channels }: { channels: Channel[] }) {
   return <ChannelEditorForm channels={channels} />;
 }

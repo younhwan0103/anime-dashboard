@@ -15,22 +15,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  CHANNELS,
-  CHANNEL_TOTAL,
-  channelShare,
-  channelSharesRounded,
-} from "@/lib/channels";
+import type { Channel } from "@/lib/channels";
 
-// 포매터는 렌더마다 만들지 않고 모듈 스코프에 한번만 !
 const nf = new Intl.NumberFormat("ko-KR");
+
 const pf = new Intl.NumberFormat("ko-KR", {
   minimumFractionDigits: 1,
   maximumFractionDigits: 1,
 });
 
-export function TableToggleDemo() {
-  const shares = channelSharesRounded();
+export function TableToggleDemo({ channels }: { channels: Channel[] }) {
+  const total = channels.reduce((sum, channel) => sum + channel.value, 0);
+
+  const shares = channels.map((channel) =>
+    total === 0 ? 0 : (channel.value / total) * 100
+  );
 
   return (
     <Tabs defaultValue="chart">
@@ -43,14 +42,15 @@ export function TableToggleDemo() {
         <ClientOnly fallback={<div className="h-65" />}>
           <div className="flex h-65 items-center justify-center">
             <PieChart
-              data={CHANNELS}
+              data={channels}
               size={220}
               innerRadius={60}
               padAngle={0.02}
             >
-              {CHANNELS.map((_, i) => (
+              {channels.map((_, i) => (
                 <PieSlice key={i} index={i} />
               ))}
+
               <PieCenter defaultLabel="총 유입" />
             </PieChart>
           </div>
@@ -60,6 +60,7 @@ export function TableToggleDemo() {
       <TabsContent value="table">
         <Table>
           <TableCaption>채널별 유입 — 최근 30일</TableCaption>
+
           <TableHeader>
             <TableRow>
               <TableHead>채널</TableHead>
@@ -67,8 +68,9 @@ export function TableToggleDemo() {
               <TableHead className="text-right">비중</TableHead>
             </TableRow>
           </TableHeader>
+
           <TableBody>
-            {CHANNELS.map((c, i) => (
+            {channels.map((c, i) => (
               <TableRow key={c.label}>
                 <TableCell>
                   <span className="flex items-center gap-2">
@@ -80,25 +82,29 @@ export function TableToggleDemo() {
                     {c.label}
                   </span>
                 </TableCell>
+
                 <TableCell className="text-right tabular-nums">
                   {nf.format(c.value)}
                 </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {pf.format(channelShare(c.value))}%
-                </TableCell>
+
                 <TableCell className="text-right tabular-nums">
                   {pf.format(shares[i])}%
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
+
           <TableFooter>
             <TableRow>
               <TableCell>합계</TableCell>
+
               <TableCell className="text-right tabular-nums">
-                {nf.format(CHANNEL_TOTAL)}
+                {nf.format(total)}
               </TableCell>
-              <TableCell className="text-right tabular-nums">100.0%</TableCell>
+
+              <TableCell className="text-right tabular-nums">
+                {total === 0 ? "0.0%" : "100.0%"}
+              </TableCell>
             </TableRow>
           </TableFooter>
         </Table>

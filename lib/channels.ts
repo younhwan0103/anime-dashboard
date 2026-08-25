@@ -20,28 +20,27 @@ export const CHANNELS: Channel[] = [
   { label: "기타", value: 1050, color: "var(--chart-5)" },
 ];
 
-export const CHANNEL_TOTAL = CHANNELS.reduce((sum, c) => sum + c.value, 0);
+export function channelTotal(channels: Channel[]): number {
+  return channels.reduce((sum, c) => sum + c.value, 0);
+}
 
-/** 비중(%). 반올림하지 않은 원값을 돌려준다. */
-export function channelShare(value: number): number {
-  return (value / CHANNEL_TOTAL) * 100;
+/** 비중(%). 반올림하지 않은 원값. */
+export function channelShare(value: number, total: number): number {
+  return total === 0 ? 0 : (value / total) * 100;
 }
 
 /**
  * 표시용 비중(%). 소수 첫째 자리로 반올림하되,
  * 합이 정확히 100.0이 되도록 가장 큰 항목이 오차를 흡수한다.
- *
- * 그냥 반올림하면 35.1 + 25.8 + 17.4 + 13.1 + 8.7 = 100.1이라
- * 열을 손으로 더해보는 사람에게 틀린 표로 보인다.
  */
-export function channelSharesRounded(): number[] {
-  const raw = CHANNELS.map((c) => channelShare(c.value));
+export function channelSharesRounded(channels: Channel[]): number[] {
+  const total = channelTotal(channels);
+  const raw = channels.map((c) => channelShare(c.value, total));
   const rounded = raw.map((v) => Math.round(v * 10) / 10);
 
   const sum = rounded.reduce((a, b) => a + b, 0);
   const drift = Math.round((100 - sum) * 10) / 10;
 
-  // 가장 큰 항목이 흡수한다. 같은 오차라도 상대 비중이 가장 작기 때문.
   const maxIndex = raw.indexOf(Math.max(...raw));
   rounded[maxIndex] = Math.round((rounded[maxIndex] + drift) * 10) / 10;
 

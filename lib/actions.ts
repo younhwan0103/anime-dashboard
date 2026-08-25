@@ -55,6 +55,8 @@ export async function updateChannel(
 export async function resetChannels(): Promise<ActionResult> {
   const store = await cookies();
   store.delete(COOKIE_NAME);
+
   revalidatePath("/lab");
+
   return { ok: true };
 }
