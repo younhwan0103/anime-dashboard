@@ -6,4 +6,3 @@ import { ChannelEditorForm } from "./form";
 export async function ChannelEditor() {
   const channels = await readChannels();
   return <ChannelEditorForm channels={channels} />;
-}
